@@ -1,0 +1,138 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f5f7fa;
+}
+
+.center-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.form {
+  width: 100%;
+  max-width: 400px;
+  padding: 30px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #4a6bff;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.message {
+  color: #666;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.role-selection {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.role-selection label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: #555;
+}
+
+.flex {
+  display: flex;
+  gap: 15px;
+}
+
+label {
+  position: relative;
+  margin-bottom: 15px;
+  display: block;
+}
+
+.icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #777;
+  font-size: 16px;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 12px 12px 40px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.input:focus {
+  border-color: #4a6bff;
+  outline: none;
+}
+
+.submit {
+  width: 100%;
+  padding: 12px;
+  background-color: #4a6bff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.submit:hover {
+  background-color: #3a5bef;
+}
+
+.signin {
+  text-align: center;
+  margin-top: 20px;
+  color: #666;
+}
+
+.signin a {
+  color: #4a6bff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.signin a:hover {
+  text-decoration: underline;
+}
+/* Password input container */
+.password-container {
+  position: relative;
+  display: block;
+  margin-bottom: 15px;
+}
+/* Password toggle eye icon */
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #777;
+}
+/* Ensure input field has enough padding for the eye icon */
+.password-container .input {
+  padding-right: 40px !important;
+}

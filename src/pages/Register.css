@@ -1,0 +1,520 @@
+/* Register Page Layout */
+.register-page {
+  min-height: 100vh;
+  background-color: #f4f7fa;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+/* Header matching landing page */
+.register-header-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  padding: 20px 40px;
+  background: linear-gradient(90deg, #005177, #0079a1);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-logo {
+  height: 55px;
+  width: auto;
+  border-radius: 6px;
+  background: white;
+  padding: 4px;
+}
+
+.header-brand h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Buttons matching landing page */
+.btn {
+  padding: 8px 16px;
+  background: white;
+  color: #005177;
+  border-radius: 20px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: #ffd700;
+  color: black;
+}
+
+.btn:focus-visible {
+  outline: 3px solid #ffd700;
+  outline-offset: 2px;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 2px solid white;
+  color: white;
+}
+
+.btn-outline:hover {
+  background: white;
+  color: #005177;
+}
+
+/* Main Register Container */
+.register-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px 20px; /* Top padding to account for fixed header */
+}
+
+.register-card {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  padding: 40px;
+  width: 100%;
+  max-width: 600px;
+  animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.register-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.register-logo {
+  height: 80px;
+  width: auto;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: white;
+  padding: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.register-header h2 {
+  color: #005177;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.register-header p {
+  color: #666;
+  font-size: 1rem;
+}
+
+.register-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.form-group input {
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: #fafbfc;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #005177;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(0, 81, 119, 0.1);
+}
+
+.form-group input::placeholder {
+  color: #999;
+}
+
+/* Form input styles */
+.form-input {
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: #fafbfc;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #005177;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(0, 81, 119, 0.1);
+}
+
+.form-input::placeholder {
+  color: #999;
+}
+
+/* Select dropdown styles */
+.form-select {
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: #fafbfc;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: #005177;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(0, 81, 119, 0.1);
+}
+
+/* Textarea styles */
+.form-textarea {
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: #fafbfc;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: #005177;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(0, 81, 119, 0.1);
+}
+
+.form-textarea::placeholder {
+  color: #999;
+}
+
+/* Error and success message styles */
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #fcc;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+.success-message {
+  background: #efe;
+  color: #363;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #cfc;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+/* Disabled button styles */
+.register-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.register-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.register-btn {
+  background: linear-gradient(135deg, #005177 0%, #0079a1 100%);
+  color: white;
+  border: none;
+  padding: 15px;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 10px;
+}
+
+.register-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 81, 119, 0.3);
+  background: linear-gradient(135deg, #004663 0%, #006989 100%);
+}
+
+.register-footer {
+  text-align: center;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e1e5e9;
+}
+
+.register-footer p {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.register-footer a {
+  color: #005177;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.register-footer a:hover {
+  color: #0079a1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .register-header-nav {
+    padding: 15px 20px;
+  }
+  
+  .header-brand h1 {
+    font-size: 1.2rem;
+  }
+  
+  .register-container {
+    padding: 80px 10px 10px;
+  }
+  
+  .register-card {
+    padding: 30px 20px;
+  }
+  
+  .register-header h2 {
+    font-size: 1.5rem;
+  }
+  
+  .form-group input,
+  .form-input,
+  .form-select,
+  .form-textarea {
+    padding: 10px 14px;
+    font-size: 0.9rem;
+  }
+  
+  .register-btn {
+    padding: 12px;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .register-header-nav {
+    padding: 10px 15px;
+  }
+  
+  .header-brand h1 {
+    font-size: 1rem;
+  }
+  
+  .register-card {
+    padding: 20px 15px;
+  }
+  
+  .register-header h2 {
+    font-size: 1.3rem;
+  }
+  
+  .register-form {
+    gap: 15px;
+  }
+}
+
+/* Toggle Switch Styles */
+.toggle-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  padding: 10px 0;
+}
+
+.toggle-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  position: relative;
+  padding: 5px 10px;
+  border-radius: 15px;
+}
+
+.toggle-label.active {
+  color: #005177;
+  font-weight: 600;
+  background: rgba(0, 81, 119, 0.1);
+  transform: scale(1.05);
+}
+
+.toggle-label:hover {
+  color: #005177;
+  transform: scale(1.02);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 60px;
+  height: 30px;
+  background: #e1e5e9;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid #e1e5e9;
+  overflow: hidden;
+}
+
+.toggle-switch:hover {
+  background: #d1d5d9;
+  transform: scale(1.05);
+}
+
+.toggle-switch:active {
+  transform: scale(0.95);
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 2;
+}
+
+.toggle-slider.toggled {
+  transform: translateX(30px);
+  background: #005177;
+  box-shadow: 0 2px 8px rgba(0, 81, 119, 0.4);
+}
+
+.toggle-switch:has(.toggle-slider.toggled) {
+  background: linear-gradient(135deg, #005177 0%, #0079a1 100%);
+  border-color: #005177;
+  box-shadow: 0 0 0 2px rgba(0, 81, 119, 0.2);
+}
+
+/* Add a subtle background animation */
+.toggle-switch::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #005177 0%, #0079a1 100%);
+  border-radius: 15px;
+  opacity: 0;
+  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1;
+}
+
+.toggle-switch:has(.toggle-slider.toggled)::before {
+  opacity: 1;
+}
+
+.toggle-description {
+  font-size: 0.8rem;
+  color: #666;
+  text-align: center;
+  margin-top: 5px;
+  font-style: italic;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0.8;
+}
+
+.toggle-description:hover {
+  opacity: 1;
+  color: #005177;
+}
+
+/* Animation for smooth toggle */
+@keyframes toggleSlide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(30px);
+  }
+}
+
+/* Responsive toggle adjustments */
+@media (max-width: 480px) {
+  .toggle-container {
+    gap: 10px;
+  }
+  
+  .toggle-label {
+    font-size: 0.8rem;
+  }
+  
+  .toggle-switch {
+    width: 50px;
+    height: 26px;
+  }
+  
+  .toggle-slider {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .toggle-slider.toggled {
+    transform: translateX(24px);
+  }
+}
+
