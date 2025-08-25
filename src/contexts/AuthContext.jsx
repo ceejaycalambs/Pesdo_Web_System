@@ -1,13 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  updateProfile 
-} from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { supabase, supabaseService } from '../supabase';
 
 const AuthContext = createContext();
 
@@ -23,24 +15,36 @@ export function AuthProvider({ children }) {
   // Sign up function
   async function signup(email, password, userType, additionalData = {}) {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            userType: userType,
+            ...additionalData
+          }
+        }
+      });
       
-      // Create user profile in Firestore
-      const userProfile = {
-        uid: user.uid,
-        email: user.email,
-        userType: userType,
-        createdAt: new Date().toISOString(),
-        ...additionalData
-      };
+      if (error) throw error;
       
-      await setDoc(doc(db, 'users', user.uid), userProfile);
+      // Create user profile in Supabase
+      if (data.user) {
+        const userProfile = {
+          id: data.user.id,
+          email: data.user.email,
+          userType: userType,
+          created_at: new Date().toISOString(),
+          ...additionalData
+        };
+        
+        await supabaseService.database.jobseekerProfiles.create(data.user.id, userProfile);
+        
+        // Update local state
+        setUserData(userProfile);
+      }
       
-      // Update local state
-      setUserData(userProfile);
-      
-      return user;
+      return data;
     } catch (error) {
       throw error;
     }
@@ -49,32 +53,42 @@ export function AuthProvider({ children }) {
   // Login function
   async function login(email, password) {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      // Fetch user data from Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        setUserData(userDoc.data());
+      if (error) throw error;
+      
+      // Fetch user data from Supabase
+      if (data.user) {
+        const userProfile = await supabaseService.database.jobseekerProfiles.get(data.user.id);
+        if (userProfile) {
+          setUserData(userProfile);
+        }
       }
       
-      return user;
+      return data;
     } catch (error) {
       throw error;
     }
   }
 
   // Logout function
-  function logout() {
-    setUserData(null);
-    return signOut(auth);
+  async function logout() {
+    try {
+      await supabase.auth.signOut();
+      setUserData(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   }
 
   // Update user profile
   async function updateUserProfile(updates) {
     try {
       if (currentUser) {
-        await updateDoc(doc(db, 'users', currentUser.uid), updates);
+        await supabaseService.database.jobseekerProfiles.update(currentUser.id, updates);
         
         // Update local state
         setUserData(prev => ({ ...prev, ...updates }));
@@ -88,11 +102,10 @@ export function AuthProvider({ children }) {
   async function updateProfilePicture(photoURL) {
     try {
       if (currentUser) {
-        await updateProfile(currentUser, { photoURL });
-        await updateDoc(doc(db, 'users', currentUser.uid), { photoURL });
+        await supabaseService.database.jobseekerProfiles.update(currentUser.id, { profile_picture_url: photoURL });
         
         // Update local state
-        setUserData(prev => ({ ...prev, photoURL }));
+        setUserData(prev => ({ ...prev, profile_picture_url: photoURL }));
       }
     } catch (error) {
       throw error;
@@ -100,15 +113,15 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setCurrentUser(session?.user || null);
       
-      if (user) {
+      if (session?.user) {
         try {
-          // Fetch user data from Firestore
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data());
+          // Fetch user data from Supabase
+          const userProfile = await supabaseService.database.jobseekerProfiles.get(session.user.id);
+          if (userProfile) {
+            setUserData(userProfile);
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
@@ -120,7 +133,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => subscription?.unsubscribe();
   }, []);
 
   const value = {

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
-import { firebaseDB, firebaseStorage, testDatabaseConnection, initializeSampleData } from '../../services/firebaseService';
-import DatabaseManager from '../../components/DatabaseManager';
+import { supabaseService } from '../../supabase';
 import './JobseekerDashboard.css';
 
 const JobseekerDashboard = () => {
@@ -60,42 +59,22 @@ const JobseekerDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Test database connection first
-      const connectionTest = await testDatabaseConnection();
-      console.log('Database connection test:', connectionTest);
-      
-      if (connectionTest.success) {
-        setDbStatus('connected');
-      } else {
-        setDbStatus('error');
-        console.error('Database connection failed:', connectionTest.message);
-      }
+      setDbStatus('connecting');
       
       if (!jobseekerId) {
         throw new Error('User not authenticated');
       }
       
       const [jobsData, profileData, likedJobsData] = await Promise.all([
-        firebaseDB.jobs.getAll(),
-        firebaseDB.jobseekerProfiles.get(jobseekerId),
-        firebaseDB.jobLikes.getLikedJobs(jobseekerId)
+        supabaseService.database.jobs.getAll(),
+        supabaseService.database.jobseekerProfiles.get(jobseekerId),
+        supabaseService.database.jobLikes.getLikedJobs(jobseekerId)
       ]);
       
       setJobs(jobsData);
       setProfile(profileData);
       setLikedJobs(likedJobsData);
-      
-      // If no jobs exist, initialize sample data
-      if (jobsData.length === 0) {
-        console.log('No jobs found, initializing sample data...');
-        const sampleDataResult = await initializeSampleData();
-        console.log('Sample data initialization:', sampleDataResult);
-        
-        // Refresh jobs after adding sample data
-        const updatedJobs = await firebaseDB.jobs.getAll();
-        setJobs(updatedJobs);
-      }
+      setDbStatus('connected');
       
       // Set profile form data
       if (profileData) {
@@ -132,92 +111,8 @@ const JobseekerDashboard = () => {
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      
-      // Provide fallback data when backend is not available
-      const fallbackJobs = [
-        {
-          id: 1,
-          title: "Frontend Developer",
-          company_name: "Tech Solutions Inc.",
-          description: "We are looking for a skilled frontend developer to join our team.",
-          requirements: "React, JavaScript, CSS, HTML",
-          salary_range: "25,000-35,000",
-          location: "Surigao City",
-          job_type: "Full-time",
-          created_at: "2024-01-15"
-        },
-        {
-          id: 2,
-          title: "Backend Developer",
-          company_name: "Tech Solutions Inc.",
-          description: "Backend developer position with focus on Node.js and databases.",
-          requirements: "Node.js, SQL, API Development",
-          salary_range: "30,000-40,000",
-          location: "Surigao City",
-          job_type: "Full-time",
-          created_at: "2024-01-14"
-        },
-        {
-          id: 3,
-          title: "UI/UX Designer",
-          company_name: "Creative Studios",
-          description: "Creative designer for web and mobile applications.",
-          requirements: "Figma, Adobe Creative Suite, Prototyping",
-          salary_range: "20,000-30,000",
-          location: "Surigao City",
-          job_type: "Full-time",
-          created_at: "2024-01-13"
-        }
-      ];
-      
-      const fallbackProfile = {
-        id: 1,
-        first_name: "John",
-        last_name: "Doe",
-        email: "john@email.com",
-        contact_no: "09123456789",
-        address: "Surigao City",
-        age: "28",
-        gender: "Male",
-        civil_status: "Single",
-        employment_status: "Unemployed",
-        education_attainment: "College Graduate",
-        work_year_experience: "3",
-        preferred_job_1: "Web Development",
-        preferred_job_2: "Software Engineering",
-        skills_education: "React, JavaScript, CSS, HTML, Node.js",
-        work_experience: "3 years of experience in full-stack development"
-      };
-      
-      setJobs(fallbackJobs);
-      setProfile(fallbackProfile);
-      setLikedJobs([]);
-      
-      // Set profile form data
-      setProfileForm({
-        first_name: fallbackProfile.first_name || '',
-        last_name: fallbackProfile.last_name || '',
-        middle_name: '',
-        suffix: '',
-        age: fallbackProfile.age || '',
-        email: fallbackProfile.email || '',
-        contact_no: fallbackProfile.contact_no || '',
-        address: fallbackProfile.address || '',
-        gender: fallbackProfile.gender || '',
-        birthdate: '',
-        civil_status: fallbackProfile.civil_status || '',
-        work_year_experience: fallbackProfile.work_year_experience || '',
-        employment_status: fallbackProfile.employment_status || '',
-        preferred_job_1: fallbackProfile.preferred_job_1 || '',
-        preferred_job_2: fallbackProfile.preferred_job_2 || '',
-        education_attainment: fallbackProfile.education_attainment || '',
-        skills_education: fallbackProfile.skills_education || '',
-        work_experience: fallbackProfile.work_experience || '',
-        profile_picture: null,
-        resume: null
-      });
-      
-      setError('Backend server is not available. Showing demo data.');
+      setDbStatus('error');
+      setError('Failed to load data from database.');
     } finally {
       setLoading(false);
     }
@@ -233,11 +128,11 @@ const JobseekerDashboard = () => {
       
       if (isLiked) {
         // Unlike the job
-        await firebaseDB.jobLikes.unlike(jobId, jobseekerId);
+        await supabaseService.database.jobLikes.unlike(jobId, jobseekerId);
         setLikedJobs(likedJobs.filter(job => job.id !== jobId));
       } else {
         // Like the job
-        await firebaseDB.jobLikes.like(jobId, jobseekerId);
+        await supabaseService.database.jobLikes.like(jobId, jobseekerId);
         const jobToLike = jobs.find(job => job.id === jobId);
         if (jobToLike) {
           setLikedJobs([{ ...jobToLike, liked_at: new Date().toISOString() }, ...likedJobs]);
@@ -254,8 +149,8 @@ const JobseekerDashboard = () => {
     
     try {
       const fileName = `${jobseekerId}_${type}_${Date.now()}_${file.name}`;
-      const filePath = `jobseekers/${jobseekerId}/${type}/${fileName}`;
-      const url = await firebaseStorage.uploadFile(file, filePath);
+      const filePath = `${type}/${fileName}`;
+      const url = await supabaseService.storage.uploadFile(file, filePath);
       return url;
     } catch (err) {
       console.error(`Error uploading ${type}:`, err);
@@ -343,9 +238,23 @@ const JobseekerDashboard = () => {
       delete profileData.profile_picture;
       delete profileData.resume;
       
-      // Update profile in Firebase
-      const updateResult = await firebaseDB.jobseekerProfiles.update(jobseekerId, profileData);
-      console.log('Profile update result:', updateResult);
+      // Create or update profile in Firebase
+      let updateResult;
+      try {
+        // Try to update first
+        updateResult = await supabaseService.database.jobseekerProfiles.upsert(jobseekerId, profileData);
+        console.log('Profile updated successfully:', updateResult);
+      } catch (error) {
+        if (error.code === 'not-found' || error.message.includes('No document to update')) {
+          // Document doesn't exist, create it instead
+          console.log('Profile document not found, creating new one...');
+          updateResult = await firebaseDB.jobseekerProfiles.create(jobseekerId, profileData);
+          console.log('Profile created successfully:', updateResult);
+        } else {
+          // Re-throw other errors
+          throw error;
+        }
+      }
       
       // Update local state
       setProfile({ ...profile, ...profileData });
@@ -596,10 +505,7 @@ const JobseekerDashboard = () => {
                 </button>
               </div>
               
-              {/* Database Manager - Only show for development */}
-              {process.env.NODE_ENV === 'development' && (
-                <DatabaseManager />
-              )}
+
 
               {isEditingProfile ? (
                 <form onSubmit={handleProfileUpdate} className="profile-form">
