@@ -27,7 +27,7 @@ const AdminAnalytics = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [error, setError] = useState('');
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const [analyticsTab, setAnalyticsTab] = useState('jobseekers');
+  const [analyticsTab, setAnalyticsTab] = useState('analytics');
   const [analyticsData, setAnalyticsData] = useState({
     analytics: [],
     jobseekers: [],
@@ -139,6 +139,288 @@ const AdminAnalytics = () => {
     []
   );
 
+  // Jobseeker demographic charts
+  const jobseekerData = analyticsData.jobseekers || [];
+
+  const genderChartData = useMemo(() => {
+    const genderCounts = {};
+    jobseekerData.forEach(seeker => {
+      const gender = seeker.gender || 'Not Specified';
+      genderCounts[gender] = (genderCounts[gender] || 0) + 1;
+    });
+
+    const labels = Object.keys(genderCounts);
+    const data = Object.values(genderCounts);
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: BAR_COLORS.slice(0, labels.length),
+        borderRadius: 8,
+        maxBarThickness: 60
+      }]
+    };
+  }, [jobseekerData]);
+
+  const civilStatusChartData = useMemo(() => {
+    const statusCounts = {};
+    jobseekerData.forEach(seeker => {
+      const status = seeker.civilStatus || 'Not Specified';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    });
+
+    const labels = Object.keys(statusCounts);
+    const data = Object.values(statusCounts);
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: BAR_COLORS.slice(0, labels.length),
+        borderRadius: 8,
+        maxBarThickness: 60
+      }]
+    };
+  }, [jobseekerData]);
+
+  const ageGroupChartData = useMemo(() => {
+    const ageGroups = {
+      '15-19': 0,
+      '20-24': 0,
+      '25-34': 0,
+      '35-44': 0,
+      '45-54': 0,
+      '55-64': 0,
+      '65+': 0,
+      'Not Specified': 0
+    };
+
+    jobseekerData.forEach(seeker => {
+      const age = seeker.age;
+      if (!age || age < 15) {
+        ageGroups['Not Specified']++;
+      } else if (age >= 15 && age <= 19) {
+        ageGroups['15-19']++;
+      } else if (age >= 20 && age <= 24) {
+        ageGroups['20-24']++;
+      } else if (age >= 25 && age <= 34) {
+        ageGroups['25-34']++;
+      } else if (age >= 35 && age <= 44) {
+        ageGroups['35-44']++;
+      } else if (age >= 45 && age <= 54) {
+        ageGroups['45-54']++;
+      } else if (age >= 55 && age <= 64) {
+        ageGroups['55-64']++;
+      } else {
+        ageGroups['65+']++;
+      }
+    });
+
+    const labels = Object.keys(ageGroups).filter(key => ageGroups[key] > 0);
+    const data = labels.map(key => ageGroups[key]);
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: BAR_COLORS.slice(0, labels.length),
+        borderRadius: 8,
+        maxBarThickness: 60
+      }]
+    };
+  }, [jobseekerData]);
+
+  const employmentStatusChartData = useMemo(() => {
+    const statusCounts = {};
+    jobseekerData.forEach(seeker => {
+      const status = seeker.employmentStatus || 'Not Specified';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    });
+
+    const labels = Object.keys(statusCounts);
+    const data = Object.values(statusCounts);
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: BAR_COLORS.slice(0, labels.length),
+        borderRadius: 8,
+        maxBarThickness: 60
+      }]
+    };
+  }, [jobseekerData]);
+
+  const educationChartData = useMemo(() => {
+    const educationCounts = {};
+    jobseekerData.forEach(seeker => {
+      const education = seeker.education || 'Not Specified';
+      educationCounts[education] = (educationCounts[education] || 0) + 1;
+    });
+
+    const labels = Object.keys(educationCounts);
+    const data = Object.values(educationCounts);
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: BAR_COLORS.slice(0, labels.length),
+        borderRadius: 8,
+        maxBarThickness: 60
+      }]
+    };
+  }, [jobseekerData]);
+
+  // Employer demographic charts
+  const employerData = analyticsData.employers || [];
+
+  const lineOfBusinessChartData = useMemo(() => {
+    const businessCounts = {};
+    employerData.forEach(employer => {
+      const lineOfBusiness = employer.lineOfBusiness || 'Not Specified';
+      businessCounts[lineOfBusiness] = (businessCounts[lineOfBusiness] || 0) + 1;
+    });
+
+    const labels = Object.keys(businessCounts);
+    const data = Object.values(businessCounts);
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: BAR_COLORS.slice(0, labels.length),
+        borderRadius: 8,
+        maxBarThickness: 60
+      }]
+    };
+  }, [employerData]);
+
+  const establishmentTypeChartData = useMemo(() => {
+    const typeCounts = {};
+    employerData.forEach(employer => {
+      const type = employer.establishmentType || 'Not Specified';
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+    });
+
+    const labels = Object.keys(typeCounts);
+    const data = Object.values(typeCounts);
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: BAR_COLORS.slice(0, labels.length),
+        borderRadius: 8,
+        maxBarThickness: 60
+      }]
+    };
+  }, [employerData]);
+
+  const employerTypeChartData = useMemo(() => {
+    const typeCounts = {};
+    employerData.forEach(employer => {
+      const type = employer.employerType || 'Not Specified';
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+    });
+
+    const labels = Object.keys(typeCounts);
+    const data = Object.values(typeCounts);
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: BAR_COLORS.slice(0, labels.length),
+        borderRadius: 8,
+        maxBarThickness: 60
+      }]
+    };
+  }, [employerData]);
+
+  const totalWorkforceChartData = useMemo(() => {
+    const workforceCounts = {};
+    employerData.forEach(employer => {
+      const workforce = employer.totalWorkforce || 'Not Specified';
+      workforceCounts[workforce] = (workforceCounts[workforce] || 0) + 1;
+    });
+
+    const labels = Object.keys(workforceCounts);
+    const data = Object.values(workforceCounts);
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: BAR_COLORS.slice(0, labels.length),
+        borderRadius: 8,
+        maxBarThickness: 60
+      }]
+    };
+  }, [employerData]);
+
+  const demographicsBarChartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed.y || 0;
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+              return `${label}: ${value} (${percentage}%)`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#123247',
+            font: {
+              weight: 600
+            }
+          },
+          grid: {
+            display: false
+          }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0,
+            color: '#123247',
+            font: {
+              weight: 600
+            }
+          },
+          grid: {
+            color: 'rgba(18, 50, 71, 0.08)'
+          }
+        }
+      }
+    }),
+    []
+  );
+
   useEffect(() => {
     checkAdminAuth();
   }, []);
@@ -193,7 +475,7 @@ const AdminAnalytics = () => {
 
       const { data: jobseekerProfiles, error: jobseekerError } = await supabase
         .from('jobseeker_profiles')
-        .select('id, first_name, last_name, suffix, email, phone, address, gender, civil_status, education, status, created_at');
+        .select('id, first_name, last_name, suffix, email, phone, address, gender, civil_status, education, status, age, created_at');
 
       if (jobseekerError) {
         console.error('Error fetching jobseeker profiles:', jobseekerError);
@@ -249,6 +531,7 @@ const AdminAnalytics = () => {
         civilStatus: profile.civil_status || '—',
         education: profile.education || '—',
         employmentStatus: profile.status === true ? 'Currently Employed' : 'Looking for Work',
+        age: profile.age || null,
         registeredAt: profile.created_at
       }));
 
@@ -703,24 +986,123 @@ const AdminAnalytics = () => {
             </div>
           ) : null}
 
-          <table className="analytics-table analytics-table--compact">
-            <thead>
-              <tr>
-                {activeConfig.columns.map(col => (
-                  <th key={col.header}>{col.header}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(item => (
-                <tr key={item.id || item.metric}>
-                  {activeConfig.columns.map(col => (
-                    <td key={col.header}>{col.accessor(item)}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="jobseeker-demographics-section">
+            <h2 className="demographics-section-title">Jobseeker Demographics</h2>
+            <div className="demographics-charts-grid">
+              {genderChartData && genderChartData.labels.length > 0 && (
+                <div className="chart-card">
+                  <div className="chart-card-header">
+                    <h3>Gender Distribution</h3>
+                    <p>Breakdown of jobseekers by gender.</p>
+                  </div>
+                  <div className="chart-canvas">
+                    <Bar data={genderChartData} options={demographicsBarChartOptions} />
+                  </div>
+                </div>
+              )}
+
+              {civilStatusChartData && civilStatusChartData.labels.length > 0 && (
+                <div className="chart-card">
+                  <div className="chart-card-header">
+                    <h3>Civil Status</h3>
+                    <p>Distribution of jobseekers by civil status.</p>
+                  </div>
+                  <div className="chart-canvas">
+                    <Bar data={civilStatusChartData} options={demographicsBarChartOptions} />
+                  </div>
+                </div>
+              )}
+
+              {ageGroupChartData && ageGroupChartData.labels.length > 0 && (
+                <div className="chart-card">
+                  <div className="chart-card-header">
+                    <h3>Age Groups</h3>
+                    <p>Jobseekers categorized by age ranges.</p>
+                  </div>
+                  <div className="chart-canvas">
+                    <Bar data={ageGroupChartData} options={demographicsBarChartOptions} />
+                  </div>
+                </div>
+              )}
+
+              {employmentStatusChartData && employmentStatusChartData.labels.length > 0 && (
+                <div className="chart-card">
+                  <div className="chart-card-header">
+                    <h3>Employment Status</h3>
+                    <p>Current employment status of jobseekers.</p>
+                  </div>
+                  <div className="chart-canvas">
+                    <Bar data={employmentStatusChartData} options={demographicsBarChartOptions} />
+                  </div>
+                </div>
+              )}
+
+              {educationChartData && educationChartData.labels.length > 0 && (
+                <div className="chart-card">
+                  <div className="chart-card-header">
+                    <h3>Education Level</h3>
+                    <p>Educational attainment of jobseekers.</p>
+                  </div>
+                  <div className="chart-canvas">
+                    <Bar data={educationChartData} options={demographicsBarChartOptions} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="employer-demographics-section">
+            <h2 className="demographics-section-title">Employer Demographics</h2>
+            <div className="demographics-charts-grid">
+              {lineOfBusinessChartData && lineOfBusinessChartData.labels.length > 0 && (
+                <div className="chart-card">
+                  <div className="chart-card-header">
+                    <h3>Line of Business</h3>
+                    <p>Distribution of employers by line of business.</p>
+                  </div>
+                  <div className="chart-canvas">
+                    <Bar data={lineOfBusinessChartData} options={demographicsBarChartOptions} />
+                  </div>
+                </div>
+              )}
+
+              {establishmentTypeChartData && establishmentTypeChartData.labels.length > 0 && (
+                <div className="chart-card">
+                  <div className="chart-card-header">
+                    <h3>Establishment Type</h3>
+                    <p>Distribution of employers by establishment type.</p>
+                  </div>
+                  <div className="chart-canvas">
+                    <Bar data={establishmentTypeChartData} options={demographicsBarChartOptions} />
+                  </div>
+                </div>
+              )}
+
+              {employerTypeChartData && employerTypeChartData.labels.length > 0 && (
+                <div className="chart-card">
+                  <div className="chart-card-header">
+                    <h3>Employer Type</h3>
+                    <p>Distribution of employers by type (Public/Private).</p>
+                  </div>
+                  <div className="chart-canvas">
+                    <Bar data={employerTypeChartData} options={demographicsBarChartOptions} />
+                  </div>
+                </div>
+              )}
+
+              {totalWorkforceChartData && totalWorkforceChartData.labels.length > 0 && (
+                <div className="chart-card">
+                  <div className="chart-card-header">
+                    <h3>Total Workforce</h3>
+                    <p>Distribution of employers by workforce size.</p>
+                  </div>
+                  <div className="chart-canvas">
+                    <Bar data={totalWorkforceChartData} options={demographicsBarChartOptions} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       );
     }

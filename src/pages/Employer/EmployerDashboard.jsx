@@ -323,6 +323,7 @@ const EmployerDashboard = () => {
                 last_name,
                 suffix,
                 email,
+                age,
                 resume_url
               )
             `
@@ -1841,6 +1842,10 @@ const EmployerDashboard = () => {
                     <div className="modal-meta-item">
                       <span>Gender</span>
                       <strong>{profile.gender || '—'}</strong>
+                    </div>
+                    <div className="modal-meta-item">
+                      <span>Age</span>
+                      <strong>{profile.age ? `${profile.age} years old` : '—'}</strong>
                     </div>
                     <div className="modal-meta-item">
                       <span>Civil Status</span>

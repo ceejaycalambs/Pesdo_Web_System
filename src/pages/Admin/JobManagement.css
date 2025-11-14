@@ -1539,9 +1539,6 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 10px;
 }
 
 .jobseeker-card {

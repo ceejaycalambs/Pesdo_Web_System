@@ -563,6 +563,10 @@ const UserManagement = () => {
                         <span>{selectedUser.gender || 'Not provided'}</span>
                       </div>
                       <div className="detail-item">
+                        <label>Age</label>
+                        <span>{selectedUser.age ? `${selectedUser.age} years old` : 'Not provided'}</span>
+                      </div>
+                      <div className="detail-item">
                         <label>Civil Status</label>
                         <span>{selectedUser.civil_status || 'Not provided'}</span>
                       </div>

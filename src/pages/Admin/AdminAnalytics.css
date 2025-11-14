@@ -326,6 +326,27 @@
   box-shadow: 0 4px 12px rgba(0, 81, 119, 0.2);
 }
 
+.jobseeker-demographics-section {
+  margin-top: 40px;
+  padding-top: 32px;
+  border-top: 2px solid rgba(15, 43, 58, 0.1);
+}
+
+.demographics-section-title {
+  color: #0f2b3a;
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 24px 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid rgba(0, 81, 119, 0.15);
+}
+
+.demographics-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
 @media (max-width: 768px) {
   .analytics-tabs {
     flex-direction: column;
@@ -341,6 +362,15 @@
 
   .analytics-main {
     padding: 20px 15px;
+  }
+
+  .demographics-charts-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .demographics-section-title {
+    font-size: 1.4rem;
   }
 }
 

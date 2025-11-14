@@ -93,6 +93,7 @@ const JobseekerDashboard = () => {
     suffix: '',
     phone: '',
     address: '',
+    age: '',
     gender: '',
     civil_status: '',
     education: '',
@@ -214,6 +215,7 @@ const JobseekerDashboard = () => {
         suffix: profileData?.suffix || '',
         phone: profileData?.phone || profileData?.contact_no || '',
         address: profileData?.address || '',
+        age: profileData?.age ? String(profileData.age) : '',
         gender: profileData?.gender || '',
         civil_status: profileData?.civil_status || '',
         education: profileData?.education || '',
@@ -679,12 +681,14 @@ const JobseekerDashboard = () => {
       sanitizeString(profileForm.preferred_job_3)
     ].filter(Boolean);
 
+    const ageValue = profileForm.age ? Number.parseInt(profileForm.age, 10) : null;
     const payload = {
       first_name: sanitizeString(profileForm.first_name),
       last_name: sanitizeString(profileForm.last_name),
       suffix: sanitizeString(profileForm.suffix),
       phone: phoneValue,
       address: sanitizeString(profileForm.address),
+      age: (ageValue && ageValue > 0 && ageValue <= 150) ? ageValue : null,
       gender: sanitizeString(profileForm.gender),
       civil_status: sanitizeString(profileForm.civil_status),
       education: sanitizeString(profileForm.education),
@@ -1430,6 +1434,18 @@ const JobseekerDashboard = () => {
               <option value="Prefer not to say">Prefer not to say</option>
                     </select>
                         </label>
+          <label className="form-field">
+            <span>Age</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="150"
+                      value={profileForm.age}
+              onChange={(e) => handleProfileInputChange('age', e.target.value)}
+                      placeholder="Enter your age"
+              disabled={!isEditingProfile}
+                    />
+          </label>
           <label className="form-field">
             <span>Civil Status</span>
             <select

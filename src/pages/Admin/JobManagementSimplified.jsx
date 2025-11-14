@@ -226,7 +226,7 @@ const JobManagementSimplified = () => {
     try {
       const { data, error } = await supabase
         .from('jobseeker_profiles')
-        .select('id, first_name, last_name, suffix, email, bio, profile_picture_url, resume_url, preferred_jobs, status, gender, address')
+        .select('id, first_name, last_name, suffix, email, bio, profile_picture_url, resume_url, preferred_jobs, status, gender, age, address')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -1323,6 +1323,7 @@ const JobManagementSimplified = () => {
                     : '';
                   const employmentStatus = formatEmploymentStatus(jobseeker.status).toLowerCase();
                   const gender = (jobseeker.gender || '').toLowerCase();
+                  const age = jobseeker.age ? String(jobseeker.age).toLowerCase() : '';
                   const address = (jobseeker.address || '').toLowerCase();
                   const matchesSearch =
                     !normalizedSearch ||
@@ -1331,6 +1332,7 @@ const JobManagementSimplified = () => {
                     preferredJobs.includes(normalizedSearch) ||
                     employmentStatus.includes(normalizedSearch) ||
                     gender.includes(normalizedSearch) ||
+                    age.includes(normalizedSearch) ||
                     address.includes(normalizedSearch);
 
                   if (!matchesSearch) {
@@ -1360,7 +1362,7 @@ const JobManagementSimplified = () => {
                         <input
                           id="jobseeker-search"
                           type="text"
-                          placeholder="Type a name or email..."
+                          placeholder="Search by name, email, jobs, status, gender, age, or address..."
                           value={referNameSearch}
                           onChange={(e) => setReferNameSearch(e.target.value)}
                         />
@@ -1448,6 +1450,10 @@ const JobManagementSimplified = () => {
                                   <div>
                                     <span className="meta-label">Gender</span>
                                     <span>{jobseeker.gender || 'Not specified'}</span>
+                                  </div>
+                                  <div>
+                                    <span className="meta-label">Age</span>
+                                    <span>{jobseeker.age ? `${jobseeker.age} years old` : 'Not specified'}</span>
                                   </div>
                                   <div>
                                     <span className="meta-label">Address</span>
