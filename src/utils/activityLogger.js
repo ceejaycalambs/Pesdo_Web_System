@@ -21,11 +21,46 @@ export const logActivity = async ({
   metadata = {}
 }) => {
   try {
-    // Get IP address and user agent if available
-    const ipAddress = metadata.ipAddress || null;
+    // Get user agent if available (IP address removed)
     const userAgent = metadata.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : null);
 
-    const { error } = await supabase
+    console.log('📝 Inserting activity log:', {
+      user_id: userId,
+      user_type: userType,
+      action_type: actionType,
+      action_description: actionDescription
+    });
+
+    // Try using RPC function first (bypasses RLS, more reliable for account creation)
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('insert_activity_log', {
+        p_user_id: userId,
+        p_user_type: userType,
+        p_action_type: actionType,
+        p_action_description: actionDescription,
+        p_entity_type: entityType,
+        p_entity_id: entityId,
+        p_metadata: metadata,
+        p_user_agent: userAgent
+      });
+
+      if (!rpcError && rpcData) {
+        console.log('✅ Activity log inserted successfully via RPC:', rpcData);
+        return; // Success, exit early
+      } else if (rpcError && !rpcError.message?.includes('function') && rpcError.code !== '42883') {
+        // RPC function exists but failed, log and fall through to direct insert
+        console.warn('⚠️ RPC function failed, trying direct insert:', rpcError);
+      } else {
+        // RPC function doesn't exist, fall through to direct insert
+        console.log('ℹ️ RPC function not available, using direct insert');
+      }
+    } catch (rpcErr) {
+      // RPC function doesn't exist or other error, fall through to direct insert
+      console.log('ℹ️ RPC function not available, using direct insert:', rpcErr.message);
+    }
+
+    // Fallback to direct insert (will work if RLS policy allows it)
+    const { data, error } = await supabase
       .from('activity_log')
       .insert({
         user_id: userId,
@@ -35,13 +70,21 @@ export const logActivity = async ({
         entity_type: entityType,
         entity_id: entityId,
         metadata: metadata,
-        ip_address: ipAddress,
         user_agent: userAgent
-      });
+      })
+      .select();
 
     if (error) {
-      console.error('Error logging activity:', error);
+      console.error('❌ Error logging activity:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       // Don't throw error - logging should not break the main functionality
+    } else {
+      console.log('✅ Activity log inserted successfully:', data);
     }
   } catch (error) {
     console.error('Error logging activity:', error);
@@ -57,7 +100,6 @@ export const logActivity = async ({
  * @param {string} params.email - Email used for login
  * @param {string} params.status - 'success', 'failed', 'blocked'
  * @param {string} params.failureReason - Reason for failed login
- * @param {string} params.ipAddress - IP address
  * @param {string} params.userAgent - User agent string
  */
 export const logLogin = async ({
@@ -66,7 +108,6 @@ export const logLogin = async ({
   email,
   status,
   failureReason = null,
-  ipAddress = null,
   userAgent = null
 }) => {
   try {
@@ -78,7 +119,6 @@ export const logLogin = async ({
         email: email,
         login_status: status,
         failure_reason: failureReason,
-        ip_address: ipAddress,
         user_agent: userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : null)
       });
 

@@ -9,6 +9,7 @@ const Register = () => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    businessName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -27,13 +28,14 @@ const Register = () => {
     // If user gets auto-logged in during registration, show success message and logout
     if (currentUser && loading && !success) {
       console.log('User auto-logged in during registration, showing success message and logging out for testing');
-      setSuccess(`🎉 Congratulations! Your ${formData.userType} account has been created successfully! Use the "Log In" button in the top right corner to access your account.`);
+      setSuccess(`Your ${formData.userType === 'employer' ? 'employer' : 'jobseeker'} account has been successfully created. Please proceed to the login page to access your account.`);
       setLoading(false);
       
       // Clear the form
       setFormData({
         firstName: '',
         lastName: '',
+        businessName: '',
         email: '',
         password: '',
         confirmPassword: '',
@@ -48,9 +50,11 @@ const Register = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    // Remove "register-" prefix from name if present
+    const stateKey = name.startsWith('register-') ? name.replace('register-', '') : name;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [stateKey]: value
     }));
   };
 
@@ -59,8 +63,8 @@ const Register = () => {
       ...prev,
       userType,
       ...(userType === 'jobseeker'
-        ? { firstName: prev.firstName || '', lastName: prev.lastName || '' }
-        : { firstName: '', lastName: '' })
+        ? { firstName: prev.firstName || '', lastName: prev.lastName || '', businessName: '' }
+        : { firstName: '', lastName: '', businessName: prev.businessName || '' })
     }));
   };
 
@@ -76,6 +80,8 @@ const Register = () => {
     const requiredFields = ['email', 'password', 'confirmPassword'];
     if (formData.userType === 'jobseeker') {
       requiredFields.push('firstName', 'lastName');
+    } else if (formData.userType === 'employer') {
+      requiredFields.push('businessName');
     }
 
     const missingField = requiredFields.find((field) => {
@@ -87,15 +93,15 @@ const Register = () => {
     });
 
     if (missingField) {
-      return 'Please fill in all required fields';
+      return 'Please complete all required fields to proceed with registration.';
     }
 
     if (formData.password !== formData.confirmPassword) {
-      return 'Passwords do not match';
+      return 'The password and confirmation password do not match. Please ensure both fields contain the same password.';
     }
 
     if (formData.password.length < 8) {
-      return 'Password must be at least 8 characters long';
+      return 'Password must contain a minimum of 8 characters.';
     }
 
     const passwordValue = formData.password;
@@ -105,7 +111,7 @@ const Register = () => {
     const hasSymbols = /[!@#$%^&*(),.?":{}|<>]/.test(passwordValue);
 
     if (!hasLowerCase || !hasUpperCase || !hasNumbers || !hasSymbols) {
-      return 'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol';
+      return 'Password must contain at least one lowercase letter, one uppercase letter, one numeric digit, and one special character.';
     }
 
     return '';
@@ -131,6 +137,10 @@ const Register = () => {
             first_name: formData.firstName.trim(),
             last_name: formData.lastName.trim()
           }
+        : formData.userType === 'employer'
+        ? {
+            business_name: formData.businessName.trim()
+          }
         : {};
 
       const result = await register(formData.email.trim(), formData.password, formData.userType, additionalData);
@@ -138,13 +148,14 @@ const Register = () => {
       console.log('Register function completed:', result);
       
       // Show success message and stay on register page
-      setSuccess(`${formData.userType === 'employer' ? 'Employer' : 'Jobseeker'} account created successfully! You can now login with your credentials.`);
+      setSuccess(`Your ${formData.userType === 'employer' ? 'employer' : 'jobseeker'} account has been successfully created. You may now proceed to log in using your registered credentials.`);
       setLoading(false);
       
       // Clear the form for next registration
       setFormData({
         firstName: '',
         lastName: '',
+        businessName: '',
         email: '',
         password: '',
         confirmPassword: '',
@@ -157,13 +168,14 @@ const Register = () => {
         // If we're still loading and no success message is shown, show it now
         if (loading && !success) {
           console.log('Fallback: Showing success message');
-          setSuccess(`${formData.userType === 'employer' ? 'Employer' : 'Jobseeker'} account created successfully! You can now login with your credentials.`);
+          setSuccess(`Your ${formData.userType === 'employer' ? 'employer' : 'jobseeker'} account has been successfully created. You may now proceed to log in using your registered credentials.`);
           setLoading(false);
           
           // Clear the form
           setFormData({
             firstName: '',
             lastName: '',
+            businessName: '',
             email: '',
             password: '',
             confirmPassword: '',
@@ -183,24 +195,26 @@ const Register = () => {
              
              // Handle specific error cases
              if (err.message?.includes('Email signups are disabled')) {
-               setError('Email signups are disabled in Supabase. Please enable email signups in Authentication settings.');
+               setError('Account registration is currently unavailable. Please contact the system administrator for assistance.');
             } else if (err.status === 504 || err.message?.includes('Gateway Timeout') || err.message?.includes('timeout') || err.name === 'AuthRetryableFetchError') {
-              setError('Email service timeout. Wait 30 seconds and try again. If it keeps failing, your SMTP settings might be wrong.');
+              setError('The registration service is temporarily unavailable due to a timeout. Please wait a moment and attempt registration again.');
             } else if (err.message?.includes('Error sending confirmation email') || err.status === 500) {
-              setError('SMTP still not working. Do this: 1) Go to Supabase Dashboard → Logs → Auth Logs → Find the error (it shows exact SMTP problem). 2) Double-check SMTP: Host=smtp.resend.com (no spaces), Port=587, Username=resend (lowercase), Password=your full API key (starts with re_), Sender=onboarding@resend.dev. 3) Click Save again. 4) Wait 5 minutes. 5) OR temporarily disable email confirmation in Supabase to test registration.');
+              setError('We encountered an issue while processing your registration. Please contact the system administrator or try again later.');
             } else if (err.message?.includes('rate limit') || err.message?.includes('Too Many Requests') || err.code === 'over_email_send_rate_limit') {
-              setError('Email rate limit exceeded. Please wait a few minutes before trying again. Supabase limits email sending to prevent spam.');
+              setError('Too many registration attempts have been made. Please wait a few minutes before attempting to register again.');
             } else if (err.message?.includes('User already registered') || err.message?.includes('already registered')) {
-              setError('An account with this email already exists. Please use a different email or try logging in.');
+              setError('An account with this email address already exists in our system. Please use a different email address or proceed to the login page if this is your account.');
             } else if (err.message?.includes('Invalid email')) {
-              setError('Please enter a valid email address.');
-             } else if (err.message?.includes('userType') || err.message?.includes('schema cache')) {
+              setError('The email address provided is invalid. Please enter a valid email address and try again.');
+            } else if (err.message?.includes('previously deleted') || err.message?.includes('orphaned')) {
+              setError(err.message); // Keep the detailed message for orphaned accounts
+            } else if (err.message?.includes('userType') || err.message?.includes('schema cache')) {
                // Schema cache issues - these are usually not real errors, just display issues
                console.log('Schema cache issue detected, but registration likely succeeded');
                // Don't show error to user, let the success flow handle it
                return;
              } else {
-               setError(err.message || 'Failed to create account. Please try again.');
+               setError('We were unable to complete your registration at this time. Please verify your information and try again. If the problem persists, please contact support.');
              }
              
              // Always ensure loading is set to false on error
@@ -230,45 +244,6 @@ const Register = () => {
             <h2>Create Your Account</h2>
             <p>Join PESDO and find your dream job in Surigao City</p>
           </div>
-
-          {error && (
-            <div className="error-message">
-              {error}
-              {error.includes('email signups are disabled') && (
-                <div className="error-help">
-                  <p><strong>Quick Fix:</strong></p>
-                  <ol>
-                    <li>Go to Supabase Dashboard → Authentication → Settings</li>
-                    <li>Find "User Signups" section</li>
-                    <li>Enable "Enable email signups" ✅</li>
-                    <li>Keep "Enable email confirmations" disabled ❌</li>
-                    <li>Save settings and try again</li>
-                  </ol>
-                  <p>You accidentally disabled all email signups instead of just email confirmations.</p>
-                </div>
-              )}
-              {error.includes('email service is not configured') && (
-                <div className="error-help">
-                  <p><strong>Quick Fix:</strong></p>
-                  <ol>
-                    <li>Go to Supabase Dashboard → Authentication → Settings</li>
-                    <li>Find "User Signups" section</li>
-                    <li>Disable "Enable email confirmations"</li>
-                    <li>Save settings and try again</li>
-                  </ol>
-                  <p>Or set up an email service like Resend for production use.</p>
-                </div>
-              )}
-            </div>
-          )}
-          {success && (
-            <div className="success-message">
-              <div className="success-icon">✅</div>
-              <div className="success-text">
-                {success}
-              </div>
-            </div>
-          )}
 
           <form className="register-form" onSubmit={handleSubmit}>
             {/* User Type Toggle */}
@@ -326,10 +301,11 @@ const Register = () => {
                   <input
                     type="text"
                     id="firstName"
-                    name="firstName"
+                    name="register-firstName"
                     value={formData.firstName}
                     onChange={handleInputChange}
                     placeholder="Enter your first name"
+                    autoComplete="off"
                     required
                   />
                 </div>
@@ -338,13 +314,30 @@ const Register = () => {
                   <input
                     type="text"
                     id="lastName"
-                    name="lastName"
+                    name="register-lastName"
                     value={formData.lastName}
                     onChange={handleInputChange}
                     placeholder="Enter your last name"
+                    autoComplete="off"
                     required
                   />
                 </div>
+              </div>
+            )}
+
+            {formData.userType === 'employer' && (
+              <div className="form-group">
+                <label htmlFor="businessName">Business Name</label>
+                <input
+                  type="text"
+                  id="businessName"
+                  name="register-businessName"
+                  value={formData.businessName}
+                  onChange={handleInputChange}
+                  placeholder="Enter your business name"
+                  autoComplete="off"
+                  required
+                />
               </div>
             )}
 
@@ -353,10 +346,11 @@ const Register = () => {
               <input
                 type="email"
                 id="email"
-                name="email"
+                name="register-email"
                 value={formData.email}
                 onChange={handleInputChange}
                 placeholder="Enter your email"
+                autoComplete="new-password"
                 required
               />
             </div>
@@ -367,10 +361,11 @@ const Register = () => {
                 <input
                   type={showPassword ? "text" : "password"}
                   id="password"
-                  name="password"
+                  name="register-password"
                   value={formData.password}
                   onChange={handleInputChange}
                   placeholder="Enter your password"
+                  autoComplete="new-password"
                   required
                   className="password-input"
                 />
@@ -401,10 +396,11 @@ const Register = () => {
                 <input
                   type={showConfirmPassword ? "text" : "password"}
                   id="confirmPassword"
-                  name="confirmPassword"
+                  name="register-confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   placeholder="Confirm your password"
+                  autoComplete="new-password"
                   required
                   className="password-input"
                 />
@@ -437,6 +433,45 @@ const Register = () => {
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
+
+          {error && (
+            <div className="error-message">
+              {error}
+              {error.includes('email signups are disabled') && (
+                <div className="error-help">
+                  <p><strong>Quick Fix:</strong></p>
+                  <ol>
+                    <li>Go to Supabase Dashboard → Authentication → Settings</li>
+                    <li>Find "User Signups" section</li>
+                    <li>Enable "Enable email signups" ✅</li>
+                    <li>Keep "Enable email confirmations" disabled ❌</li>
+                    <li>Save settings and try again</li>
+                  </ol>
+                  <p>You accidentally disabled all email signups instead of just email confirmations.</p>
+                </div>
+              )}
+              {error.includes('email service is not configured') && (
+                <div className="error-help">
+                  <p><strong>Quick Fix:</strong></p>
+                  <ol>
+                    <li>Go to Supabase Dashboard → Authentication → Settings</li>
+                    <li>Find "User Signups" section</li>
+                    <li>Disable "Enable email confirmations"</li>
+                    <li>Save settings and try again</li>
+                  </ol>
+                  <p>Or set up an email service like Resend for production use.</p>
+                </div>
+              )}
+            </div>
+          )}
+          {success && (
+            <div className="success-message">
+              <div className="success-icon">✅</div>
+              <div className="success-text">
+                {success}
+              </div>
+            </div>
+          )}
 
           {!success && (
             <div className="register-footer">

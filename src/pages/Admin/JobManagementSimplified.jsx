@@ -23,6 +23,7 @@ const JobManagementSimplified = () => {
   const [jobseekers, setJobseekers] = useState([]);
   const [selectedJobForReferral, setSelectedJobForReferral] = useState(null);
   const [isReferring, setIsReferring] = useState(false);
+  const [isCancelingReferral, setIsCancelingReferral] = useState(false);
   const [showReferJobseekersModal, setShowReferJobseekersModal] = useState(false);
   const [applications, setApplications] = useState([]);
   const [selectedResumeUrl, setSelectedResumeUrl] = useState(null);
@@ -374,8 +375,19 @@ const JobManagementSimplified = () => {
         showNotification('success', `✅ Jobseeker referred successfully! (${action === 'updated' ? 'Updated existing application' : 'Created new application'})`);
       }
 
-      // Log activity
+      // Log activity with admin name
       if (currentUser?.id) {
+        // Get admin name
+        const { data: adminProfile } = await supabase
+          .from('admin_profiles')
+          .select('first_name, last_name, username, email')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        
+        const adminName = adminProfile 
+          ? `${adminProfile.first_name || ''} ${adminProfile.last_name || ''}`.trim() || adminProfile.username || adminProfile.email || 'Admin'
+          : 'Admin';
+        
         // Get jobseeker name for logging
         const jobseeker = jobseekers.find(js => js.id === jobseekerId);
         const jobseekerName = jobseeker 
@@ -386,10 +398,11 @@ const JobManagementSimplified = () => {
           userId: currentUser.id,
           userType: adminRole === 'super_admin' ? 'super_admin' : 'admin',
           actionType: 'jobseeker_referred',
-          actionDescription: `Referred jobseeker ${jobseekerName} to job: ${selectedJobForReferral.position_title || selectedJobForReferral.title}`,
+          actionDescription: `${adminName} referred jobseeker ${jobseekerName} to job: ${selectedJobForReferral.position_title || selectedJobForReferral.title}`,
           entityType: 'application',
           entityId: null, // Application ID might not be available immediately
           metadata: {
+            adminName: adminName,
             jobseekerId: jobseekerId,
             jobseekerName: jobseekerName,
             jobId: selectedJobForReferral.id,
@@ -407,6 +420,89 @@ const JobManagementSimplified = () => {
       showNotification('error', `Failed to refer jobseeker: ${error.message}`);
     } finally {
       setIsReferring(false);
+    }
+  };
+
+  // Handle canceling a referral
+  const handleCancelReferral = async (jobseekerId) => {
+    if (!selectedJobForReferral || !jobseekerId) {
+      showNotification('error', 'Unable to cancel referral');
+      return;
+    }
+
+    try {
+      setIsCancelingReferral(true);
+
+      // Find the existing application
+      const { data: existingApp, error: fetchError } = await supabase
+        .from('applications')
+        .select('id, status')
+        .eq('job_id', selectedJobForReferral.id)
+        .eq('jobseeker_id', jobseekerId)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      if (!existingApp) {
+        showNotification('error', 'Application not found');
+        return;
+      }
+
+      // Delete the application entirely since it was a referral, not a real application
+      // This ensures it doesn't appear in jobseeker's "Applied & Referred" section
+      const { error: deleteError } = await supabase
+        .from('applications')
+        .delete()
+        .eq('id', existingApp.id);
+
+      if (deleteError) throw deleteError;
+
+      showNotification('success', '✅ Referral canceled successfully!');
+
+      // Log activity with admin name
+      if (currentUser?.id) {
+        // Get admin name
+        const { data: adminProfile } = await supabase
+          .from('admin_profiles')
+          .select('first_name, last_name, username, email')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        
+        const adminName = adminProfile 
+          ? `${adminProfile.first_name || ''} ${adminProfile.last_name || ''}`.trim() || adminProfile.username || adminProfile.email || 'Admin'
+          : 'Admin';
+        
+        const jobseeker = jobseekers.find(js => js.id === jobseekerId);
+        const jobseekerName = jobseeker 
+          ? `${jobseeker.first_name || ''} ${jobseeker.last_name || ''}`.trim() || jobseeker.email
+          : 'Unknown';
+
+        await logActivity({
+          userId: currentUser.id,
+          userType: adminRole === 'super_admin' ? 'super_admin' : 'admin',
+          actionType: 'referral_canceled',
+          actionDescription: `${adminName} canceled referral for jobseeker ${jobseekerName} from job: ${selectedJobForReferral.position_title || selectedJobForReferral.title}`,
+          entityType: 'application',
+          entityId: existingApp.id,
+          metadata: {
+            adminName: adminName,
+            jobseekerId: jobseekerId,
+            jobseekerName: jobseekerName,
+            jobId: selectedJobForReferral.id,
+            jobTitle: selectedJobForReferral.position_title || selectedJobForReferral.title
+          }
+        });
+      }
+
+      // Refresh applications and jobseekers
+      await fetchApplications();
+      await fetchJobseekers();
+      
+    } catch (error) {
+      console.error('Error canceling referral:', error);
+      showNotification('error', `Failed to cancel referral: ${error.message}`);
+    } finally {
+      setIsCancelingReferral(false);
     }
   };
 
@@ -489,6 +585,30 @@ const JobManagementSimplified = () => {
                       })}
                     </span>
                   </div>
+                  {job.valid_from && (
+                    <div className="job-detail-item">
+                      <span className="job-detail-label">📆 Valid From:</span>
+                      <span className="job-detail-value">
+                        {new Date(job.valid_from).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {job.valid_until && (
+                    <div className="job-detail-item">
+                      <span className="job-detail-label">⏰ Valid Until:</span>
+                      <span className="job-detail-value">
+                        {new Date(job.valid_until).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <p className="job-description-text">
@@ -751,16 +871,28 @@ const JobManagementSimplified = () => {
         console.log('✅ Notification created:', notificationData);
       }
 
-      // Log activity
+      // Log activity with admin name
       if (currentUser?.id) {
+        // Get admin name
+        const { data: adminProfile } = await supabase
+          .from('admin_profiles')
+          .select('first_name, last_name, username, email')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        
+        const adminName = adminProfile 
+          ? `${adminProfile.first_name || ''} ${adminProfile.last_name || ''}`.trim() || adminProfile.username || adminProfile.email || 'Admin'
+          : 'Admin';
+
         await logActivity({
           userId: currentUser.id,
           userType: adminRole === 'super_admin' ? 'super_admin' : 'admin',
           actionType: 'job_approved',
-          actionDescription: `Approved job vacancy: ${job.position_title}`,
+          actionDescription: `${adminName} approved job vacancy: ${job.position_title}`,
           entityType: 'job',
           entityId: insertData?.id || job.id,
           metadata: {
+            adminName: adminName,
             jobTitle: job.position_title,
             employerId: job.employer_id,
             vacancyCount: job.vacancy_count
@@ -809,6 +941,7 @@ const JobManagementSimplified = () => {
       pwd_others_specify: job.pwd_others_specify || '',
       accepts_ofw: job.accepts_ofw || 'No',
       posting_date: job.posting_date || '',
+      valid_from: job.valid_from || '',
       valid_until: job.valid_until || ''
     });
     setShowEditModal(true);
@@ -1273,11 +1406,39 @@ const JobManagementSimplified = () => {
                   </div>
                   <div className="info-item">
                     <label>Posting Date</label>
-                    <span className="posting-date">{selectedJob.posting_date || 'Not specified'}</span>
+                    <span className="posting-date">
+                      {selectedJob.posting_date 
+                        ? new Date(selectedJob.posting_date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })
+                        : 'Not specified'}
+                    </span>
+                  </div>
+                  <div className="info-item">
+                    <label>Valid From</label>
+                    <span className="valid-from">
+                      {selectedJob.valid_from 
+                        ? new Date(selectedJob.valid_from).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })
+                        : 'Not specified'}
+                    </span>
                   </div>
                   <div className="info-item">
                     <label>Valid Until</label>
-                    <span className="valid-until">{selectedJob.valid_until || 'Not specified'}</span>
+                    <span className="valid-until">
+                      {selectedJob.valid_until 
+                        ? new Date(selectedJob.valid_until).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })
+                        : 'Not specified'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1483,11 +1644,13 @@ const JobManagementSimplified = () => {
                   
                   // Only show if:
                   // 1. No application exists, OR
-                  // 2. Application exists but status is 'referred' (can see already referred ones)
-                  // Exclude: 'pending', 'accepted', 'rejected'
+                  // 2. Application exists but status is 'referred' (can see already referred ones), OR
+                  // 3. Application exists with 'pending' status (canceled referrals become pending - can refer again)
+                  // Exclude: 'accepted', 'rejected'
                   if (!existingApp) return true; // No application - can refer
                   if (existingApp.status === 'referred') return true; // Already referred - show for reference
-                  return false; // Has applied/accepted/rejected - hide
+                  if (existingApp.status === 'pending') return true; // Pending (including canceled referrals) - can refer
+                  return false; // Has accepted/rejected - hide
                 });
 
                 return (
@@ -1612,17 +1775,28 @@ const JobManagementSimplified = () => {
                                   ) : (
                                     <span className="no-resume-indicator">📄 No Resume Available</span>
                                   )}
-                                  <button
-                                    className={`btn-refer ${isReferred ? 'referred' : ''}`}
-                                    onClick={() => handleReferJobseeker(jobseeker.id)}
-                                    disabled={isReferring || isReferred}
-                                  >
-                                    {isReferred
-                                      ? '✅ Already Referred'
-                                      : isReferring
-                                      ? '⏳ Referring...'
-                                      : '👤 Refer'}
-                                  </button>
+                                  {isReferred ? (
+                                    <>
+                                      <span className="already-referred-status">✅ Already Referred</span>
+                                      <button
+                                        className="btn-cancel-referral"
+                                        onClick={() => handleCancelReferral(jobseeker.id)}
+                                        disabled={isCancelingReferral}
+                                      >
+                                        {isCancelingReferral ? '⏳ Canceling...' : '❌ Cancel Referral'}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      className={`btn-refer ${isReferred ? 'referred' : ''}`}
+                                      onClick={() => handleReferJobseeker(jobseeker.id)}
+                                      disabled={isReferring || isReferred}
+                                    >
+                                      {isReferring
+                                        ? '⏳ Referring...'
+                                        : '👤 Refer'}
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1891,6 +2065,15 @@ const JobManagementSimplified = () => {
                       type="date"
                       value={editForm.posting_date}
                       onChange={(e) => setEditForm(prev => ({ ...prev, posting_date: e.target.value }))}
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Valid From</label>
+                    <input
+                      type="date"
+                      value={editForm.valid_from}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, valid_from: e.target.value }))}
                       className="form-input"
                     />
                   </div>

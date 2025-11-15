@@ -112,7 +112,7 @@ const AdminLanding = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@pesdo.com"
+                  placeholder="Enter your email address"
                   required
                   disabled={loading}
                   className="admin-input"

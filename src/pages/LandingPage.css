@@ -852,6 +852,71 @@ nav a {
     color: #546674;
 }
 
+/* Mobile Menu Toggle Button */
+.mobile-menu-toggle {
+    display: none;
+    background: transparent;
+    border: 2px solid white;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+}
+
+.mobile-menu-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.mobile-menu-toggle:active {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Mobile Navigation */
+.mobile-nav {
+    display: none;
+    position: fixed;
+    top: 80px;
+    left: 0;
+    right: 0;
+    background: linear-gradient(90deg, #005177, #0079a1);
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.mobile-nav.open {
+    display: flex;
+}
+
+.mobile-nav .btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.mobile-nav .login-dropdown {
+    width: 100%;
+}
+
+.mobile-nav .login-dropdown-btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.mobile-nav .login-dropdown-content {
+    position: static;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    min-width: 100%;
+    margin-top: 10px;
+    box-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .header {
@@ -866,30 +931,204 @@ nav a {
     .header.scrolled .header-logo {
         height: 38px;
     }
+    
+    /* Hide desktop nav, show mobile toggle */
     nav {
-        gap: 12px;
+        display: none;
     }
+    
+    .mobile-menu-toggle {
+        display: block;
+    }
+    
     .btn {
         padding: 10px 18px;
         font-size: 0.9rem;
     }
+    
+    /* Improve login dropdown for mobile */
+    .login-dropdown-content {
+        right: auto;
+        left: 0;
+        min-width: 100%;
+    }
+    
+    /* Welcome section mobile adjustments */
+    .welcome-section {
+        padding: 60px 15px;
+        min-height: auto;
+    }
+    
+    .welcome-content {
+        padding: 0 15px;
+    }
+    
+    /* Stats section mobile */
+    .stats-section {
+        padding: 40px 15px;
+    }
+    
+    /* Employers section mobile */
+    .employers-section {
+        padding: 40px 15px;
+    }
+    
+    .employers-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 20px 15px;
+    }
+    
+    .employer-logo {
+        max-height: 60px;
+    }
+    
+    .employer-logo-placeholder {
+        width: 80px;
+        height: 60px;
+        font-size: 1rem;
+    }
 }
 
 @media (max-width: 480px) {
+    .header {
+        padding: 12px 15px;
+    }
+    
     .header h1 {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 150px;
     }
+    
     .header-logo {
-        height: 40px;
-    }
-    .header.scrolled .header-logo {
         height: 35px;
     }
-    nav {
-        gap: 8px;
+    
+    .header.scrolled {
+        padding: 10px 15px;
     }
+    
+    .header.scrolled .header-logo {
+        height: 30px;
+    }
+    
+    .header.scrolled h1 {
+        font-size: 1rem;
+        max-width: 120px;
+    }
+    
+    .mobile-menu-toggle {
+        padding: 6px 10px;
+        font-size: 1rem;
+    }
+    
+    .mobile-nav {
+        top: 70px;
+        padding: 15px;
+    }
+    
     .btn {
-        padding: 8px 14px;
+        padding: 10px 16px;
+        font-size: 0.85rem;
+    }
+    
+    /* Welcome section small mobile */
+    .welcome-section {
+        padding: 50px 10px;
+    }
+    
+    .welcome-content {
+        padding: 0 10px;
+    }
+    
+    .welcome-content h2 {
+        font-size: 1.6rem;
+        margin-bottom: 15px;
+    }
+    
+    .welcome-content p {
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+    
+    /* Stats section small mobile */
+    .stats-section {
+        padding: 30px 10px;
+    }
+    
+    .stats-section-title {
+        font-size: 1.4rem;
+        margin-bottom: 20px;
+    }
+    
+    .stats-cards {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .stat-card {
+        padding: 18px 15px;
+        min-height: 120px;
+    }
+    
+    .stat-icon {
+        font-size: 1.6rem;
+        width: 50px;
+        height: 50px;
+    }
+    
+    .stat-label {
+        font-size: 0.7rem;
+    }
+    
+    .stat-number {
+        font-size: 1.4rem;
+    }
+    
+    /* Employers section small mobile */
+    .employers-section {
+        padding: 30px 10px;
+    }
+    
+    .employers-section-title {
+        font-size: 1.3rem;
+        margin-bottom: 25px;
+    }
+    
+    .employers-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 15px 10px;
+    }
+    
+    .employer-logo {
+        max-height: 50px;
+    }
+    
+    .employer-logo-placeholder {
+        width: 70px;
+        height: 50px;
+        font-size: 0.9rem;
+    }
+    
+    /* Footer mobile */
+    .landing-footer {
+        padding: 30px 15px;
+    }
+    
+    .footer-content {
+        grid-template-columns: 1fr;
+        gap: 25px;
+        text-align: center;
+    }
+    
+    .footer-section h3 {
+        font-size: 1.1rem;
+    }
+    
+    .footer-section p,
+    .footer-section a {
         font-size: 0.85rem;
     }
 }

@@ -274,16 +274,28 @@ const JobManagement = () => {
         }
       ]);
 
-      // Log activity
+      // Log activity with admin name
       if (currentUser?.id) {
+        // Get admin name
+        const { data: adminProfile } = await supabase
+          .from('admin_profiles')
+          .select('first_name, last_name, username, email')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        
+        const adminName = adminProfile 
+          ? `${adminProfile.first_name || ''} ${adminProfile.last_name || ''}`.trim() || adminProfile.username || adminProfile.email || 'Admin'
+          : 'Admin';
+
         await logActivity({
           userId: currentUser.id,
           userType: adminRole === 'super_admin' ? 'super_admin' : 'admin',
           actionType: 'job_rejected',
-          actionDescription: `Rejected job vacancy: ${pendingJob.position_title}`,
+          actionDescription: `${adminName} rejected job vacancy: ${pendingJob.position_title}`,
           entityType: 'job',
           entityId: pendingJob.id,
           metadata: {
+            adminName: adminName,
             jobTitle: pendingJob.position_title,
             employerId: pendingJob.employer_id,
             rejectionReason: customReason

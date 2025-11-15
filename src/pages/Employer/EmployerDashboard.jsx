@@ -349,17 +349,34 @@ const EmployerDashboard = () => {
       setJobApplications((prev) => {
         const next = {};
 
+        // Get list of canceled referrals from localStorage
+        let canceledReferralIds = [];
+        try {
+          canceledReferralIds = JSON.parse(localStorage.getItem('canceled_referrals') || '[]');
+        } catch (e) {
+          console.warn('Failed to read canceled referrals from localStorage:', e);
+        }
+
         for (const jobId of Object.keys(applicationsByJob)) {
           next[jobId] = applicationsByJob[jobId].map((application) => {
             const statusNormalized = (application.status || '').toLowerCase();
             const previous = prev[jobId]?.find((item) => item.id === application.id);
-            const wasReferred =
-              Boolean(previous?.was_referred) || statusNormalized === 'referred';
+            
+            // was_referred should only be true if current status is 'referred'
+            const wasReferred = statusNormalized === 'referred';
+            
+            // Track if application was ever referred (even if now canceled)
+            // Check: 1) previous state, 2) current status, 3) localStorage (canceled referrals)
+            const wasEverReferred = 
+              previous?.was_ever_referred || 
+              statusNormalized === 'referred' ||
+              canceledReferralIds.includes(application.id);
 
             return {
               ...application,
               status: statusNormalized,
-              was_referred: wasReferred
+              was_referred: wasReferred,
+              was_ever_referred: wasEverReferred
             };
           });
         }
@@ -415,13 +432,14 @@ const EmployerDashboard = () => {
       setProfileMessage({ type: 'success', text: 'Profile updated successfully.' });
       setIsEditingProfile(false);
 
-      // Log activity
-      if (currentUser?.id) {
+      // Log activity with employer name
+      if (currentUser?.id && profile) {
+        const employerName = profile.business_name || profile.contact_person_name || profile.email || 'Unknown';
         await logActivity({
           userId: currentUser.id,
           userType: 'employer',
           actionType: 'profile_updated',
-          actionDescription: 'Updated employer profile information',
+          actionDescription: `${employerName} updated profile information`,
           entityType: 'profile',
           entityId: employerId,
           metadata: {
@@ -538,6 +556,39 @@ const EmployerDashboard = () => {
 
       setDocumentSelection((prev) => ({ ...prev, [type]: null }));
 
+      // Log activity with employer name
+      if (currentUser?.id && profile) {
+        const employerName = profile.business_name || profile.contact_person_name || profile.email || 'Unknown';
+        
+        // Use specific action types based on document type
+        let actionType;
+        if (type === 'logo') {
+          actionType = 'company_logo_uploaded';
+        } else if (type === 'bir') {
+          actionType = 'bir_document_uploaded';
+        } else if (type === 'permit') {
+          actionType = 'business_permit_uploaded';
+        } else {
+          actionType = 'document_uploaded';
+        }
+        
+        await logActivity({
+          userId: currentUser.id,
+          userType: 'employer',
+          actionType: actionType,
+          actionDescription: `${employerName} uploaded ${config.label}: ${file.name}`,
+          entityType: 'profile',
+          entityId: employerId,
+          metadata: {
+            documentType: type,
+            documentLabel: config.label,
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type
+          }
+        });
+      }
+
       setDocumentFeedback(type, {
         uploading: false,
         success: `${config.label} uploaded successfully.`,
@@ -577,7 +628,7 @@ const EmployerDashboard = () => {
     }));
   };
 
-  const handleOpenJobDetails = (job, status) => {
+  const handleOpenJobDetails = async (job, status) => {
     setSelectedJob({ ...job });
     setSelectedJobStatus(status);
     setSelectedApplication(null);
@@ -585,6 +636,12 @@ const EmployerDashboard = () => {
     setLoadingApplicationProfile(false);
     setIsApplicationModalOpen(false);
     setJobDetailsOpen(true);
+    
+    // Refresh applications when opening job details to get latest status
+    // This ensures canceled referrals are properly filtered
+    if (job?.id) {
+      await fetchJobs();
+    }
   };
 
   const handleCloseJobDetails = () => {
@@ -683,7 +740,7 @@ const EmployerDashboard = () => {
               ...prev,
               status: nextStatus,
               updated_at: new Date().toISOString(),
-              was_referred: prev.was_referred || prev.status === 'referred'
+              was_referred: nextStatus === 'referred'
             }
           : prev
       );
@@ -841,7 +898,7 @@ const EmployerDashboard = () => {
                 value={profileForm.business_name}
                 onChange={(e) => handleProfileInputChange('business_name', e.target.value)}
                 required
-                disabled={!isEditingProfile}
+                disabled={true}
               />
             </label>
             <label className="form-field">
@@ -1617,9 +1674,14 @@ const EmployerDashboard = () => {
     }
 
     const applicationsForSelectedJob = jobApplications[selectedJob.id] || [];
+    
+    // Filter applicants: exclude those that were ever referred (even if canceled)
+    // Since canceled referrals are now deleted, we only need to check was_ever_referred flag
     const activeApplicants = applicationsForSelectedJob.filter(
-      (application) => !application.was_referred
+      (application) => !application.was_referred && !application.was_ever_referred
     );
+    
+    // Only show currently referred applicants
     const referredApplicants = applicationsForSelectedJob.filter(
       (application) => application.was_referred
     );

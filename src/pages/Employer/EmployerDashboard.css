@@ -819,7 +819,7 @@ input[type="date"]::-ms-expand {
 }
 
 .employer-dashboard .js-sidebar {
-  width: 260px;
+  width: 280px;
   background: linear-gradient(180deg, #0b3a53 0%, #0f5a7a 100%);
   color: #fff;
   display: flex;
@@ -851,6 +851,46 @@ input[type="date"]::-ms-expand {
   display: none;
 }
 
+.employer-dashboard .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.25s ease, transform 0.25s ease;
+  position: relative;
+  width: 100%;
+  text-align: left;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.employer-dashboard .nav-item:hover,
+.employer-dashboard .nav-item.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  transform: translateX(4px);
+}
+
+.employer-dashboard .nav-item .nav-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.employer-dashboard .nav-item span:not(.nav-icon) {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
 .employer-dashboard .sidebar-footer {
   margin-top: auto;
   padding-top: 24px;
@@ -860,7 +900,7 @@ input[type="date"]::-ms-expand {
   flex: 1;
   padding: 32px;
   overflow-y: auto;
-  margin-left: 260px;
+  margin-left: 280px;
 }
 
 .accessibility-grid {

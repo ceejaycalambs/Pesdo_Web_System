@@ -748,13 +748,14 @@ const JobseekerDashboard = () => {
       });
       setIsEditingProfile(false);
 
-      // Log activity
-      if (currentUser?.id) {
+      // Log activity with jobseeker name
+      if (currentUser?.id && profile) {
+        const jobseekerName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email || 'Unknown';
         await logActivity({
           userId: currentUser.id,
           userType: 'jobseeker',
           actionType: 'profile_updated',
-          actionDescription: 'Updated jobseeker profile information',
+          actionDescription: `${jobseekerName} updated profile information`,
           entityType: 'profile',
           entityId: jobseekerId,
           metadata: {
@@ -899,6 +900,24 @@ const JobseekerDashboard = () => {
         updated_at: updatedAt
       }));
 
+      // Log activity with jobseeker name
+      if (currentUser?.id && profile) {
+        const jobseekerName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email || 'Unknown';
+        await logActivity({
+          userId: currentUser.id,
+          userType: 'jobseeker',
+          actionType: 'resume_uploaded',
+          actionDescription: `${jobseekerName} uploaded resume: ${file.name}`,
+          entityType: 'profile',
+          entityId: jobseekerId,
+          metadata: {
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type
+          }
+        });
+      }
+
       setResumeState({
         uploading: false,
         success: 'Resume uploaded successfully.',
@@ -1028,6 +1047,24 @@ const JobseekerDashboard = () => {
         updated_at: new Date().toISOString()
       }));
 
+      // Log activity with jobseeker name
+      if (currentUser?.id && profile) {
+        const jobseekerName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email || 'Unknown';
+        await logActivity({
+          userId: currentUser.id,
+          userType: 'jobseeker',
+          actionType: 'avatar_uploaded',
+          actionDescription: `${jobseekerName} uploaded profile photo: ${file.name}`,
+          entityType: 'profile',
+          entityId: jobseekerId,
+          metadata: {
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type
+          }
+        });
+      }
+
       setAvatarState({
         uploading: false,
         success: 'Profile photo updated successfully.',
@@ -1142,13 +1179,14 @@ const JobseekerDashboard = () => {
       const inserted = Array.isArray(data) ? data[0] : data;
       const appliedAt = inserted?.applied_at || inserted?.created_at || timestamp;
 
-      // Log activity
-      if (currentUser?.id) {
+      // Log activity with jobseeker name
+      if (currentUser?.id && profile) {
+        const jobseekerName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email || 'Unknown';
         await logActivity({
           userId: currentUser.id,
           userType: 'jobseeker',
           actionType: 'job_applied',
-          actionDescription: `Applied to job: ${selectedJob.title || selectedJob.position_title || 'Job Vacancy'}`,
+          actionDescription: `${jobseekerName} applied to job: ${selectedJob.title || selectedJob.position_title || 'Job Vacancy'}`,
           entityType: 'application',
           entityId: inserted?.id,
           metadata: {

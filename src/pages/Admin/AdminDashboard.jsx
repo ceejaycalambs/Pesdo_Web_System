@@ -21,6 +21,7 @@ const AdminDashboard = () => {
   const [error, setError] = useState('');
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [adminRole, setAdminRole] = useState(null); // 'admin' or 'super_admin'
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     checkAdminAuth();
@@ -373,9 +374,22 @@ const AdminDashboard = () => {
 
   return (
     <div className="admin-dashboard">
+      {/* Mobile Menu Overlay */}
+      <div 
+        className={`admin-sidebar-overlay ${mobileMenuOpen ? 'open' : ''}`}
+        onClick={() => setMobileMenuOpen(false)}
+      ></div>
+      
       {/* Sidebar */}
-      <aside className="admin-sidebar">
+      <aside className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
+          <button 
+            className="admin-mobile-menu-toggle"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close mobile menu"
+          >
+            ✕
+          </button>
         </div>
         <nav className="sidebar-nav">
           <ul className="nav-list">
@@ -383,7 +397,10 @@ const AdminDashboard = () => {
               <li key={item.path}>
                 <button
                   className={`nav-item ${isActive(item.path, item.exact, item.query) ? 'active' : ''}`}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => {
+                    navigate(item.path);
+                    setMobileMenuOpen(false);
+                  }}
                 >
                   <span className="nav-icon">{item.icon}</span>
                   <span className="nav-label">{item.label}</span>
@@ -399,7 +416,10 @@ const AdminDashboard = () => {
                   <li key={item.path}>
                     <button
                       className={`nav-item ${isActive(item.path) ? 'active' : ''}`}
-                      onClick={() => navigate(item.path)}
+                      onClick={() => {
+                        navigate(item.path);
+                        setMobileMenuOpen(false);
+                      }}
                     >
                       <span className="nav-icon">{item.icon}</span>
                       <span className="nav-label">{item.label}</span>
@@ -428,6 +448,13 @@ const AdminDashboard = () => {
         <header className="admin-dashboard-header">
           <div className="header-content">
             <div className="header-left">
+              <button 
+                className="admin-mobile-menu-toggle"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Open mobile menu"
+              >
+                ☰
+              </button>
               <div>
                 <h1>Admin Dashboard</h1>
               </div>

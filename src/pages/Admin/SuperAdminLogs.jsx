@@ -186,7 +186,8 @@ const SuperAdminLogs = () => {
       'application_rejected': 'Application Rejected',
       'employer_verified': 'Employer Verified',
       'employer_rejected': 'Employer Rejected',
-      'employer_verification_updated': 'Employer Verification Updated'
+      'employer_verification_updated': 'Employer Verification Updated',
+      'account_created': 'Account Created'
     };
     return labels[actionType] || actionType;
   };
@@ -256,6 +257,7 @@ const SuperAdminLogs = () => {
                 onChange={(e) => setFilters({ ...filters, actionType: e.target.value })}
               >
                 <option value="all">All Actions</option>
+                <option value="account_created">Account Created</option>
                 <option value="job_approved">Job Approved</option>
                 <option value="job_rejected">Job Rejected</option>
                 <option value="jobseeker_referred">Jobseeker Referred</option>
@@ -309,13 +311,12 @@ const SuperAdminLogs = () => {
                     <th>Action</th>
                     <th>Description</th>
                     <th>Entity</th>
-                    <th>IP Address</th>
                   </tr>
                 </thead>
                 <tbody>
                   {activityLogs.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="no-data">No activity logs found</td>
+                      <td colSpan="5" className="no-data">No activity logs found</td>
                     </tr>
                   ) : (
                     activityLogs.map((log) => (
@@ -333,7 +334,6 @@ const SuperAdminLogs = () => {
                             ? `${log.entity_type} (${log.entity_id.slice(0, 8)}...)`
                             : '—'}
                         </td>
-                        <td>{log.ip_address || '—'}</td>
                       </tr>
                     ))
                   )}
@@ -350,13 +350,12 @@ const SuperAdminLogs = () => {
                     <th>Email</th>
                     <th>Status</th>
                     <th>Failure Reason</th>
-                    <th>IP Address</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loginLogs.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="no-data">No login logs found</td>
+                      <td colSpan="5" className="no-data">No login logs found</td>
                     </tr>
                   ) : (
                     loginLogs.map((log) => (
@@ -374,7 +373,6 @@ const SuperAdminLogs = () => {
                           </span>
                         </td>
                         <td>{log.failure_reason || '—'}</td>
-                        <td>{log.ip_address || '—'}</td>
                       </tr>
                     ))
                   )}

@@ -7,6 +7,7 @@ import { supabase } from '../supabase';
 
 const LandingPage = () => {
     const [headerScrolled, setHeaderScrolled] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [stats, setStats] = useState({
         jobseekers: 0,
         employers: 0,
@@ -26,6 +27,28 @@ const LandingPage = () => {
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    // Close mobile menu when clicking outside and prevent body scroll
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (mobileMenuOpen && !event.target.closest('.header') && !event.target.closest('.mobile-nav')) {
+                setMobileMenuOpen(false);
+            }
+        };
+
+        if (mobileMenuOpen) {
+            document.addEventListener('click', handleClickOutside);
+            // Prevent body scroll when menu is open
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+
+        return () => {
+            document.removeEventListener('click', handleClickOutside);
+            document.body.style.overflow = '';
+        };
+    }, [mobileMenuOpen]);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -191,26 +214,34 @@ const LandingPage = () => {
                     <img src={Logo_pesdo} alt="PESDO Logo" className="header-logo" />
                     <h1>PESDO Web Portal</h1>
                 </div>
+                <button 
+                    className="mobile-menu-toggle" 
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    aria-label="Toggle mobile menu"
+                    aria-expanded={mobileMenuOpen}
+                >
+                    {mobileMenuOpen ? '✕' : '☰'}
+                </button>
                 <nav aria-label="Primary navigation">
                     <Link className="btn" to="/register">Register</Link>
                     <div className="login-dropdown">
                         <button className="btn btn-outline login-dropdown-btn">Login</button>
                         <div className="login-dropdown-content">
-                            <Link to="/login/jobseeker" className="login-option">
+                            <Link to="/login/jobseeker" className="login-option" onClick={() => setMobileMenuOpen(false)}>
                                 <span className="login-icon">👤</span>
                                 <span className="login-text">
                                     <strong>Jobseeker Login</strong>
                                     <small>Find your dream job</small>
                                 </span>
                             </Link>
-                            <Link to="/login/employer" className="login-option">
+                            <Link to="/login/employer" className="login-option" onClick={() => setMobileMenuOpen(false)}>
                                 <span className="login-icon">🏢</span>
                                 <span className="login-text">
                                     <strong>Employer Login</strong>
                                     <small>Manage your business</small>
                                 </span>
                             </Link>
-                            <Link to="/admin" className="login-option admin-option">
+                            <Link to="/admin" className="login-option admin-option" onClick={() => setMobileMenuOpen(false)}>
                                 <span className="login-icon">⚙️</span>
                                 <span className="login-text">
                                     <strong>Admin Login</strong>
@@ -221,13 +252,45 @@ const LandingPage = () => {
                     </div>
                 </nav>
             </header>
+            
+            {/* Mobile Navigation */}
+            <div className={`mobile-nav ${mobileMenuOpen ? 'open' : ''}`}>
+                <Link className="btn" to="/register" onClick={() => setMobileMenuOpen(false)}>Register</Link>
+                <div className="login-dropdown">
+                    <button className="btn btn-outline login-dropdown-btn">Login</button>
+                    <div className="login-dropdown-content">
+                        <Link to="/login/jobseeker" className="login-option" onClick={() => setMobileMenuOpen(false)}>
+                            <span className="login-icon">👤</span>
+                            <span className="login-text">
+                                <strong>Jobseeker Login</strong>
+                                <small>Find your dream job</small>
+                            </span>
+                        </Link>
+                        <Link to="/login/employer" className="login-option" onClick={() => setMobileMenuOpen(false)}>
+                            <span className="login-icon">🏢</span>
+                            <span className="login-text">
+                                <strong>Employer Login</strong>
+                                <small>Manage your business</small>
+                            </span>
+                        </Link>
+                        <Link to="/admin" className="login-option admin-option" onClick={() => setMobileMenuOpen(false)}>
+                            <span className="login-icon">⚙️</span>
+                            <span className="login-text">
+                                <strong>Admin Login</strong>
+                                <small>System administration</small>
+                            </span>
+                        </Link>
+                    </div>
+                </div>
+            </div>
 
             {/* Your new design content goes here */}
             <main 
                 id="main" 
                 className="main-content"
                 style={{
-                    paddingTop: '100px'
+                    paddingTop: mobileMenuOpen ? '180px' : '100px',
+                    transition: 'padding-top 0.3s ease'
                 }}
             >
                 {/* Welcome Section */}

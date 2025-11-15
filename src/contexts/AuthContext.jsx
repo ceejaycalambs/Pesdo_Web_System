@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { supabase } from '../supabase';
-import { logLogin } from '../utils/activityLogger';
+import { logLogin, logActivity } from '../utils/activityLogger';
 
 const AuthContext = createContext();
 
@@ -53,6 +53,113 @@ export function AuthProvider({ children }) {
           code: error.code,
           name: error.name
         });
+        
+        // Handle "User already registered" error - check if profile exists
+        if (error.message?.includes('already registered') || error.message?.includes('User already registered')) {
+          console.log('🔍 User already registered - checking if profile exists...');
+          
+          // Check if profile exists for this email
+          let profileExists = false;
+          
+          // Check jobseeker profiles
+          const { data: jobseekerProfile } = await supabase
+            .from('jobseeker_profiles')
+            .select('id')
+            .eq('email', email)
+            .maybeSingle();
+          
+          if (jobseekerProfile) {
+            profileExists = true;
+            console.log('✅ Jobseeker profile exists for this email');
+          } else {
+            // Check employer profiles
+            const { data: employerProfile } = await supabase
+              .from('employer_profiles')
+              .select('id')
+              .eq('email', email)
+              .maybeSingle();
+            
+            if (employerProfile) {
+              profileExists = true;
+              console.log('✅ Employer profile exists for this email');
+            } else {
+              // Check admin profiles
+              const { data: adminProfile } = await supabase
+                .from('admin_profiles')
+                .select('id')
+                .eq('email', email)
+                .maybeSingle();
+              
+              if (adminProfile) {
+                profileExists = true;
+                console.log('✅ Admin profile exists for this email');
+              } else {
+                console.log('⚠️ No profile found - auth user exists but profile is deleted (orphaned)');
+                console.log('🔧 Attempting to clean up orphaned auth user...');
+                
+                // Try to use an RPC function to delete the orphaned auth user by email
+                try {
+                  console.log('🔧 Calling delete_auth_user_by_email RPC function for:', email);
+                  const { data: cleanupResult, error: cleanupError } = await supabase.rpc('delete_auth_user_by_email', {
+                    user_email: email
+                  });
+                  
+                  console.log('🔧 Cleanup RPC result:', { cleanupResult, cleanupError });
+                  
+                  if (cleanupError) {
+                    console.error('⚠️ Failed to clean up orphaned auth user via RPC:', cleanupError);
+                    console.error('⚠️ Cleanup error details:', {
+                      message: cleanupError.message,
+                      code: cleanupError.code,
+                      details: cleanupError.details,
+                      hint: cleanupError.hint
+                    });
+                    
+                    // If RPC function doesn't exist or fails, provide helpful error message
+                    if (cleanupError.message?.includes('function') || cleanupError.code === '42883' || cleanupError.message?.includes('does not exist')) {
+                      throw new Error('The cleanup function is not set up. Please run the SQL script `database/delete_auth_user_by_email.sql` in Supabase SQL Editor first. Alternatively, contact an administrator to manually delete the orphaned auth user from the Supabase Dashboard (Authentication > Users).');
+                    } else if (cleanupError.message?.includes('permission') || cleanupError.message?.includes('privilege')) {
+                      throw new Error('Insufficient permissions to clean up the orphaned account. Please contact an administrator to manually delete the orphaned auth user from the Supabase Dashboard (Authentication > Users), or use a different email address.');
+                    } else {
+                      throw new Error(`Cleanup failed: ${cleanupError.message || 'Unknown error'}. Please contact an administrator to manually delete the orphaned auth user from the Supabase Dashboard (Authentication > Users), or use a different email address.`);
+                    }
+                  } else if (cleanupResult === true) {
+                    console.log('✅ Orphaned auth user deleted successfully!');
+                    // Wait a moment for Supabase to process the deletion
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    // Retry the signup
+                    console.log('🔄 Retrying signup after cleanup...');
+                    return signup(email, password, userType, additionalData);
+                  } else if (cleanupResult === false) {
+                    console.log('⚠️ Cleanup function returned false - auth user may not exist or was already deleted, or permission denied');
+                    // If cleanup returns false, it might mean:
+                    // 1. The user doesn't exist (but Supabase Auth still thinks it does - caching issue)
+                    // 2. Permission restrictions prevent deletion
+                    // 3. The function needs to be run with service role
+                    // 4. The user was already deleted but Supabase Auth hasn't updated yet
+                    throw new Error('The cleanup function could not delete the orphaned account. This might be a Supabase caching issue.\n\nSOLUTIONS:\n1. Wait 1-2 minutes and try registering again (Supabase may need time to update)\n2. Clear your browser cache and cookies, then try again\n3. Ask an administrator to verify the user is deleted in Supabase Dashboard > Authentication > Users\n4. If the user still appears, delete it again and wait a few minutes\n5. Use a different email address to register\n\nIf the problem persists, this is likely a Supabase Auth caching issue that will resolve itself within a few minutes.');
+                  } else {
+                    console.log('⚠️ Cleanup function returned unexpected result:', cleanupResult);
+                    throw new Error('Cleanup returned an unexpected result. Please contact an administrator to manually delete the orphaned auth user from the Supabase Dashboard (Authentication > Users), or use a different email address.');
+                  }
+                } catch (cleanupErr) {
+                  // If it's our custom error, re-throw it
+                  if (cleanupErr.message?.includes('orphaned') || cleanupErr.message?.includes('previously deleted') || cleanupErr.message?.includes('try registering again') || cleanupErr.message?.includes('cleaned up successfully') || cleanupErr.message?.includes('caching')) {
+                    throw cleanupErr;
+                  }
+                  // Otherwise, provide a generic helpful error
+                  console.error('⚠️ Error during cleanup attempt:', cleanupErr);
+                  throw new Error('An account with this email was previously deleted, but the authentication record still exists. This might be a Supabase caching issue. Please wait 1-2 minutes and try again, or contact an administrator to verify the user is deleted in Supabase Dashboard (Authentication > Users).');
+                }
+              }
+            }
+          }
+          
+          if (profileExists) {
+            // Profile exists, so this is a legitimate "already registered" error
+            throw new Error('An account with this email already exists. Please use a different email or try logging in.');
+          }
+        }
         
         // Sometimes user is created but email fails - check if user exists
         if (data?.user) {
@@ -118,6 +225,61 @@ export function AuthProvider({ children }) {
         } else {
           console.log('✅ Profile created successfully');
           console.log('✅ Profile result:', profileResult.data);
+          
+          // Log account creation activity with name
+          try {
+            const actionType = 'account_created';
+            let actionDescription;
+            
+            if (userType === 'jobseeker') {
+              const jobseekerName = sanitizedData.first_name && sanitizedData.last_name
+                ? `${sanitizedData.first_name} ${sanitizedData.last_name}`.trim()
+                : email;
+              actionDescription = `Jobseeker account created: ${jobseekerName}`;
+            } else if (userType === 'employer') {
+              const employerName = sanitizedData.business_name || sanitizedData.contact_person_name || email;
+              actionDescription = `Employer account created: ${employerName}`;
+            } else {
+              actionDescription = `Account created: ${email}`;
+            }
+            
+            console.log('📝 Logging account creation activity:', {
+              userId: data.user.id,
+              userType: userType,
+              actionType: actionType,
+              actionDescription: actionDescription,
+              email: email
+            });
+            
+            await logActivity({
+              userId: data.user.id,
+              userType: userType,
+              actionType: actionType,
+              actionDescription: actionDescription,
+              entityType: 'profile',
+              entityId: data.user.id,
+              metadata: {
+                email: email,
+                accountType: userType,
+                ...(userType === 'jobseeker' && sanitizedData.first_name ? {
+                  firstName: sanitizedData.first_name,
+                  lastName: sanitizedData.last_name
+                } : {}),
+                ...(userType === 'employer' && sanitizedData.business_name ? {
+                  businessName: sanitizedData.business_name
+                } : {})
+              }
+            });
+            console.log('✅ Account creation logged to activity log successfully');
+          } catch (logError) {
+            console.error('⚠️ Failed to log account creation activity:', logError);
+            console.error('⚠️ Error details:', {
+              message: logError.message,
+              stack: logError.stack,
+              error: logError
+            });
+            // Don't throw - logging failure shouldn't break registration
+          }
         }
         
         // Update local state

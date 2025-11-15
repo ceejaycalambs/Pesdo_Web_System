@@ -1662,6 +1662,21 @@
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  align-items: center;
+}
+
+.already-referred-status {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .btn-refer {
@@ -1691,6 +1706,35 @@
   background: #d4edda;
   color: #155724;
   border: 1px solid #c3e6cb;
+}
+
+.btn-cancel-referral {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-cancel-referral:hover:not(:disabled) {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-cancel-referral:disabled {
+  background: #fca5a5;
+  color: white;
+  cursor: not-allowed;
+  opacity: 0.7;
+  transform: none;
 }
 
 .no-applicants {

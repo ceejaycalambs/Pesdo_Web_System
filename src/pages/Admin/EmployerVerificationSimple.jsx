@@ -90,16 +90,27 @@ const EmployerVerificationSimple = () => {
 
       console.log('✅ Update successful:', data);
 
-      // Log activity
+      // Log activity with admin name
       if (currentUser?.id) {
+        // Get admin name
+        const { data: adminProfile } = await supabase
+          .from('admin_profiles')
+          .select('first_name, last_name, username, email')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        
+        const adminName = adminProfile 
+          ? `${adminProfile.first_name || ''} ${adminProfile.last_name || ''}`.trim() || adminProfile.username || adminProfile.email || 'Admin'
+          : 'Admin';
+        
         const actionType = verificationStatus === 'approved' ? 'employer_verified' : 
                           verificationStatus === 'rejected' ? 'employer_rejected' : 
                           'employer_verification_updated';
         const actionDescription = verificationStatus === 'approved' 
-          ? `Verified employer: ${selectedEmployer.business_name || selectedEmployer.email}`
+          ? `${adminName} verified employer: ${selectedEmployer.business_name || selectedEmployer.email}`
           : verificationStatus === 'rejected'
-          ? `Rejected employer verification: ${selectedEmployer.business_name || selectedEmployer.email}`
-          : `Updated employer verification status to ${verificationStatus}`;
+          ? `${adminName} rejected employer verification: ${selectedEmployer.business_name || selectedEmployer.email}`
+          : `${adminName} updated employer verification status to ${verificationStatus}`;
 
         await logActivity({
           userId: currentUser.id,
@@ -109,6 +120,7 @@ const EmployerVerificationSimple = () => {
           entityType: 'profile',
           entityId: selectedEmployer.id,
           metadata: {
+            adminName: adminName,
             employerId: selectedEmployer.id,
             businessName: selectedEmployer.business_name,
             verificationStatus: verificationStatus,
