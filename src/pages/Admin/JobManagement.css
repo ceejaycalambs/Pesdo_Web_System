@@ -378,6 +378,86 @@
   gap: 25px;
 }
 
+/* Table view (similar to Admin tables) */
+.table-wrapper {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.jobs-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.95rem;
+}
+
+.jobs-table thead th {
+  background: linear-gradient(135deg, #005177, #0079a1);
+  color: #ffffff;
+  text-align: left;
+  padding: 14px 18px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.jobs-table thead th:first-child {
+  border-top-left-radius: 12px;
+}
+.jobs-table thead th:last-child {
+  border-top-right-radius: 12px;
+}
+
+.jobs-table tbody tr {
+  background: #ffffff;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.jobs-table tbody tr:hover {
+  background: #f9fbff;
+}
+
+.jobs-table td {
+  padding: 14px 18px;
+  color: #1f2937;
+  vertical-align: middle;
+}
+
+.jobs-table td .status-badge {
+  padding: 6px 12px;
+  border-radius: 14px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.jobs-table.pending .status-badge { background: #e5e7eb; color:#374151; border:1px solid #d1d5db; }
+.jobs-table.approved .status-badge { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
+
+.jobs-table td button {
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.jobs-table td .btn-quick.view { background:#e0f2fe; color:#0c4a6e; }
+.jobs-table td .btn-quick.view:hover { background:#bae6fd; }
+.jobs-table td .btn-warning { background:#f59e0b; color:#fff; }
+.jobs-table td .btn-warning:hover { background:#d97706; }
+.jobs-table td .btn-primary { background:#2563eb; color:#fff; }
+.jobs-table td .btn-primary:hover { background:#1d4ed8; }
+
+.jobs-table .company-cell {
+  display:flex; align-items:center; gap:10px;
+}
+.jobs-table .company-cell img {
+  width:32px; height:32px; border-radius:8px; object-fit:cover; border:1px solid #e5e7eb;
+}
+
 /* Job Card */
 .job-card {
   background: white;

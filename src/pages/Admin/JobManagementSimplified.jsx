@@ -1115,61 +1115,44 @@ const JobManagementSimplified = () => {
       <>
         {renderJobFilters(false)}
         {hasJobs ? (
-          <div className="jobs-grid">
-        {filteredPendingJobs.map((job) => (
-          <div key={job.id} className="job-card pending">
-            <div className="job-header">
-              {job.company_logo_url && (
-                <div className="job-card-logo">
-                  <img src={job.company_logo_url} alt={`${job.business_name || 'Company'} logo`} />
-                </div>
-              )}
-              <h3>{job.business_name || 'Company Name Not Provided'}</h3>
-              <span className="status-badge pending">Pending</span>
-            </div>
-            <div className="job-details">
-              <div className="job-info">
-                <div className="editable-field static">
-                  <strong>Position:</strong>
-                  <span>{job.position_title}</span>
-                </div>
-                <div className="editable-field static">
-                  <strong>Location:</strong>
-                  <span>{job.place_of_work}</span>
-                </div>
-                <div className="editable-field static">
-                  <strong>Type:</strong>
-                  <span>{job.nature_of_work}</span>
-                </div>
-                <div className="editable-field static">
-                  <strong>Vacancies:</strong>
-                  <span>{job.vacancy_count}</span>
-                </div>
-              </div>
-
-              <div className="job-quick-actions">
-                <button
-                  className="btn-quick view"
-                  onClick={() => handleViewJob(job, 'pending')}
-                >
-                  View Details
-                </button>
-                <button 
-                  className="btn-warning"
-                  onClick={() => handleEditJob(job)}
-                >
-                  Edit
-                </button>
-                <button 
-                  className="btn-primary"
-                  onClick={() => handleApproveJob(job)}
-                >
-                  Approve
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+          <div className="table-wrapper">
+            <table className="jobs-table pending">
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th>Position</th>
+                  <th>Location</th>
+                  <th>Type</th>
+                  <th>Vacancies</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPendingJobs.map((job) => (
+                  <tr key={job.id}>
+                    <td>
+                      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                        {job.company_logo_url && (
+                          <img src={job.company_logo_url} alt="logo" style={{width:28,height:28,borderRadius:4,objectFit:'cover'}} />
+                        )}
+                        <span>{job.business_name || 'Company Name Not Provided'}</span>
+                      </div>
+                    </td>
+                    <td>{job.position_title}</td>
+                    <td>{job.place_of_work}</td>
+                    <td>{job.nature_of_work}</td>
+                    <td>{job.vacancy_count}</td>
+                    <td><span className="status-badge pending">Pending</span></td>
+                    <td style={{whiteSpace:'nowrap'}}>
+                      <button className="btn-quick view" onClick={() => handleViewJob(job, 'pending')}>View</button>
+                      <button className="btn-warning" onClick={() => handleEditJob(job)}>Edit</button>
+                      <button className="btn-primary" onClick={() => handleApproveJob(job)}>Approve</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
           <div className="no-jobs">
@@ -1189,48 +1172,42 @@ const JobManagementSimplified = () => {
       <>
         {renderJobFilters(false)}
         {hasJobs ? (
-          <div className="jobs-grid">
-        {filteredApprovedJobs.map((job) => (
-          <div key={job.id} className="job-card approved">
-            <div className="job-header">
-              {job.company_logo_url && (
-                <div className="job-card-logo">
-                  <img src={job.company_logo_url} alt={`${job.business_name || 'Company'} logo`} />
-                </div>
-              )}
-              <h3>{job.business_name || 'Company Name Not Provided'}</h3>
-              <span className="status-badge approved">Approved</span>
-            </div>
-            <div className="job-details">
-              <div className="job-info">
-                <div className="editable-field static">
-                  <strong>Position:</strong>
-                  <span>{job.title || job.position_title}</span>
-                </div>
-                <div className="editable-field static">
-                  <strong>Location:</strong>
-                  <span>{job.location || job.place_of_work}</span>
-                </div>
-                <div className="editable-field static">
-                  <strong>Type:</strong>
-                  <span>{job.job_type || job.nature_of_work}</span>
-                </div>
-                <div className="editable-field static">
-                  <strong>Vacancies:</strong>
-                  <span>{job.vacancy_count || job.total_positions || '—'}</span>
-                </div>
-              </div>
-              <div className="job-actions">
-                <button 
-                  className="btn-secondary"
-                  onClick={() => handleViewJob(job, 'approved')}
-                >
-                  View Details
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+          <div className="table-wrapper">
+            <table className="jobs-table approved">
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th>Position</th>
+                  <th>Location</th>
+                  <th>Type</th>
+                  <th>Vacancies</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredApprovedJobs.map((job) => (
+                  <tr key={job.id}>
+                    <td>
+                      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                        {job.company_logo_url && (
+                          <img src={job.company_logo_url} alt="logo" style={{width:28,height:28,borderRadius:4,objectFit:'cover'}} />
+                        )}
+                        <span>{job.business_name || 'Company Name Not Provided'}</span>
+                      </div>
+                    </td>
+                    <td>{job.title || job.position_title}</td>
+                    <td>{job.location || job.place_of_work}</td>
+                    <td>{job.job_type || job.nature_of_work}</td>
+                    <td>{job.vacancy_count || job.total_positions || '—'}</td>
+                    <td><span className="status-badge approved">Approved</span></td>
+                    <td style={{whiteSpace:'nowrap'}}>
+                      <button className="btn-secondary" onClick={() => handleViewJob(job, 'approved')}>View</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
           <div className="no-jobs">
@@ -1703,122 +1680,78 @@ const JobManagementSimplified = () => {
                           <p>Try a different name or email. Clear the search to see everyone again.</p>
                         </div>
                       ) : (
-                        availableJobseekers.map((jobseeker) => {
-                          const existingApp = applications.find(
-                            (app) =>
-                              app.job_id === selectedJobForReferral.id &&
-                              app.jobseeker_id === jobseeker.id
-                          );
-                          const isReferred = existingApp?.status === 'referred';
-                          const resumeUrl = jobseeker.resume_url;
-                          const preferredJobsList = Array.isArray(jobseeker.preferred_jobs)
-                            ? jobseeker.preferred_jobs.filter(Boolean)
-                            : [];
-                          const employmentStatusLabel = formatEmploymentStatus(jobseeker.status);
+                        <div className="table-wrapper">
+                          <table className="jobs-table refer-jobseekers">
+                            <thead>
+                              <tr>
+                                <th>Jobseeker</th>
+                                <th>Email</th>
+                                <th>Preferred Jobs</th>
+                                <th>Status</th>
+                                <th>Gender</th>
+                                <th>Age</th>
+                                <th>Address</th>
+                                <th>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {availableJobseekers.map((jobseeker) => {
+                                const existingApp = applications.find(
+                                  (app) =>
+                                    app.job_id === selectedJobForReferral.id &&
+                                    app.jobseeker_id === jobseeker.id
+                                );
+                                const isReferred = existingApp?.status === 'referred';
+                                const resumeUrl = jobseeker.resume_url;
+                                const preferredJobsList = Array.isArray(jobseeker.preferred_jobs)
+                                  ? jobseeker.preferred_jobs.filter(Boolean)
+                                  : [];
+                                const employmentStatusLabel = formatEmploymentStatus(jobseeker.status);
 
-                          return (
-                            <div key={jobseeker.id} className="jobseeker-card">
-                              <div className="jobseeker-header">
-                                <div className="jobseeker-info">
-                                  <div className="jobseeker-avatar">
-                                    {jobseeker.profile_picture_url ? (
-                                      <img
-                                        src={jobseeker.profile_picture_url}
-                                        alt={formatJobseekerName(jobseeker) || 'Jobseeker'}
-                                      />
-                                    ) : (
-                                      <div className="avatar-placeholder">
-                                        {jobseeker.first_name?.[0]?.toUpperCase() ||
-                                          jobseeker.last_name?.[0]?.toUpperCase() ||
-                                          'J'}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="jobseeker-details">
-                                    <h4>{formatJobseekerName(jobseeker) || jobseeker.email || 'Unnamed Jobseeker'}</h4>
-                                    <p className="jobseeker-email">{jobseeker.email}</p>
-                                  </div>
-                                </div>
-                                <div className={`referral-status-badge ${isReferred ? 'referred' : 'not-referred'}`}>
-                                  {isReferred ? '👤 Referred' : '⏳ Not Referred'}
-                                </div>
-                              </div>
-
-                              <div className="jobseeker-body">
-                                {jobseeker.bio && (
-                                  <div className="jobseeker-bio">
-                                    <strong>Bio:</strong> {jobseeker.bio}
-                                  </div>
-                                )}
-
-                                <div className="jobseeker-meta">
-                                  <div>
-                                    <span className="meta-label">Preferred Jobs</span>
-                                    <span>
-                                      {preferredJobsList.length
-                                        ? preferredJobsList.join(', ')
-                                        : 'Not specified'}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="meta-label">Employment Status</span>
-                                    <span>{employmentStatusLabel}</span>
-                                  </div>
-                                  <div>
-                                    <span className="meta-label">Gender</span>
-                                    <span>{jobseeker.gender || 'Not specified'}</span>
-                                  </div>
-                                  <div>
-                                    <span className="meta-label">Age</span>
-                                    <span>{jobseeker.age ? `${jobseeker.age} years old` : 'Not specified'}</span>
-                                  </div>
-                                  <div>
-                                    <span className="meta-label">Address</span>
-                                    <span>{jobseeker.address || 'Not specified'}</span>
-                                  </div>
-                                </div>
-
-                                <div className="jobseeker-actions">
-                                  {resumeUrl ? (
-                                    <button
-                                      className="btn-view-resume"
-                                      onClick={() => {
-                                        console.log('🔍 Resume URL from profile:', resumeUrl);
-                                        handleViewResume(resumeUrl);
-                                      }}
-                                    >
-                                      📄 View Resume
-                                    </button>
-                                  ) : (
-                                    <span className="no-resume-indicator">📄 No Resume Available</span>
-                                  )}
-                                  {isReferred ? (
-                                    <>
-                                      <span className="already-referred-status">✅ Already Referred</span>
-                                      <button
-                                        className="btn-cancel-referral"
-                                        onClick={() => handleCancelReferral(jobseeker.id)}
-                                        disabled={isCancelingReferral}
-                                      >
-                                        {isCancelingReferral ? '⏳ Canceling...' : '❌ Cancel Referral'}
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button
-                                      className={`btn-refer ${isReferred ? 'referred' : ''}`}
-                                      onClick={() => handleReferJobseeker(jobseeker.id)}
-                                      disabled={isReferring || isReferred}
-                                    >
-                                      {isReferring
-                                        ? '⏳ Referring...'
-                                        : '👤 Refer'}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
+                                return (
+                                  <tr key={jobseeker.id}>
+                                    <td>{formatJobseekerName(jobseeker) || 'Unnamed Jobseeker'}</td>
+                                    <td>{jobseeker.email || '—'}</td>
+                                    <td>{preferredJobsList.length ? preferredJobsList.join(', ') : 'Not specified'}</td>
+                                    <td>{employmentStatusLabel}</td>
+                                    <td>{jobseeker.gender || 'Not specified'}</td>
+                                    <td>{jobseeker.age ? `${jobseeker.age}` : '—'}</td>
+                                    <td>{jobseeker.address || 'Not specified'}</td>
+                                    <td style={{whiteSpace:'nowrap'}}>
+                                      {resumeUrl ? (
+                                        <button
+                                          className="btn-view-resume"
+                                          onClick={() => handleViewResume(resumeUrl)}
+                                        >
+                                          View Resume
+                                        </button>
+                                      ) : (
+                                        <span className="no-resume-indicator">No Resume</span>
+                                      )}
+                                      {isReferred ? (
+                                        <button
+                                          className="btn-cancel-referral"
+                                          onClick={() => handleCancelReferral(jobseeker.id)}
+                                          disabled={isCancelingReferral}
+                                        >
+                                          {isCancelingReferral ? 'Canceling...' : 'Cancel Referral'}
+                                        </button>
+                                      ) : (
+                                        <button
+                                          className={`btn-refer ${isReferred ? 'referred' : ''}`}
+                                          onClick={() => handleReferJobseeker(jobseeker.id)}
+                                          disabled={isReferring || isReferred}
+                                        >
+                                          {isReferring ? 'Referring...' : 'Refer'}
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       )}
                     </div>
                   </>
