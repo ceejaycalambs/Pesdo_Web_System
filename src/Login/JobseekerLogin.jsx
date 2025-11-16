@@ -13,7 +13,7 @@ const JobseekerLogin = () => {
   const navigate = useNavigate();
   const auth = useAuth();
 
-  const { login, currentUser, userData, loading: authLoading, profileLoaded } = auth || {};
+  const { login, logout, currentUser, userData, loading: authLoading, profileLoaded } = auth || {};
 
   // Clear form fields when component mounts
   useEffect(() => {
@@ -32,14 +32,16 @@ const JobseekerLogin = () => {
     });
 
     if (currentUser && !authLoading && profileLoaded) {
-      console.log('✅ User authenticated and profile loaded, redirecting to dashboard...');
-      console.log('User type from URL: jobseeker');
-      console.log('User data:', userData);
-      console.log('User type from userData:', userData?.userType);
-      
-      // Always redirect to jobseeker dashboard since this is jobseeker login
-      console.log('Redirecting to jobseeker dashboard');
-      navigate('/jobseeker');
+      const type = userData?.userType;
+      console.log('✅ Authenticated session detected on JobseekerLogin. userType:', type);
+      if (type === 'jobseeker') {
+        console.log('Redirecting to jobseeker dashboard');
+        navigate('/jobseeker');
+      } else if (type) {
+        console.warn('Account type mismatch on JobseekerLogin, signing out existing session...', type);
+        // Clear any non-jobseeker session to prevent wrong redirects
+        logout?.(true).catch(() => {});
+      }
     }
   }, [currentUser, userData, authLoading, profileLoaded, navigate, auth]);
 

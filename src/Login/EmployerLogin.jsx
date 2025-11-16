@@ -13,7 +13,7 @@ const EmployerLogin = () => {
   const navigate = useNavigate();
   const auth = useAuth();
 
-  const { login, currentUser, userData, loading: authLoading, profileLoaded } = auth || {};
+  const { login, logout, currentUser, userData, loading: authLoading, profileLoaded } = auth || {};
 
   // Clear form fields when component mounts
   useEffect(() => {
@@ -32,14 +32,16 @@ const EmployerLogin = () => {
     });
 
     if (currentUser && !authLoading && profileLoaded) {
-      console.log('✅ User authenticated and profile loaded, redirecting to dashboard...');
-      console.log('User type from URL: employer');
-      console.log('User data:', userData);
-      console.log('User type from userData:', userData?.userType);
-      
-      // Always redirect to employer dashboard since this is employer login
-      console.log('Redirecting to employer dashboard');
-      navigate('/employer');
+      const type = userData?.userType;
+      console.log('✅ Authenticated session detected on EmployerLogin. userType:', type);
+      if (type === 'employer') {
+        console.log('Redirecting to employer dashboard');
+        navigate('/employer');
+      } else if (type) {
+        console.warn('Account type mismatch on EmployerLogin, signing out existing session...', type);
+        // Clear any non-employer session to prevent wrong redirects
+        logout?.(true).catch(() => {});
+      }
     }
   }, [currentUser, userData, authLoading, profileLoaded, navigate, auth]);
 
