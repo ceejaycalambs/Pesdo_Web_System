@@ -25,53 +25,59 @@ const LandingPage = () => {
     const [loadingEmployers, setLoadingEmployers] = useState(true);
     const hasRedirected = useRef(false);
     
-    // Memoize userType to prevent unnecessary re-renders
-    const userType = useMemo(() => userData?.userType, [userData?.userType]);
+    // Memoize userType to get stable reference
+    const userType = useMemo(() => userData?.userType || null, [userData?.userType]);
     
-    // Redirect authenticated users to their dashboard
+    // Helper function to perform redirect - defined outside effect to avoid recreation
+    const performRedirect = React.useCallback((userTypeValue) => {
+        if (hasRedirected.current) return;
+        
+        console.log('🔍 Landing page - User is logged in, redirecting to dashboard...');
+        console.log('User type:', userTypeValue);
+        
+        hasRedirected.current = true;
+        
+        if (userTypeValue === 'employer') {
+            navigate('/employer', { replace: true });
+        } else if (userTypeValue === 'jobseeker') {
+            navigate('/jobseeker', { replace: true });
+        } else if (userTypeValue === 'admin') {
+            const currentHost = window.location.hostname;
+            if (currentHost.startsWith('admin.')) {
+                navigate('/dashboard', { replace: true });
+            } else {
+                const baseDomain = currentHost.replace(/^(www\.|admin\.)/, '');
+                const adminHost = `admin.${baseDomain}`;
+                window.location.href = `https://${adminHost}/dashboard`;
+            }
+        }
+    }, [navigate]);
+    
+    // Effect 1: Reset redirect flag when pathname changes away from '/'
     useEffect(() => {
-        // Early returns to prevent unnecessary execution
+        if (location.pathname !== '/') {
+            hasRedirected.current = false;
+        }
+    }, [location.pathname]);
+    
+    // Effect 2: Check auth and redirect - only runs when auth state actually changes
+    useEffect(() => {
+        // Only check on landing page
+        if (location.pathname !== '/') return;
+        
+        // Prevent multiple redirects
+        if (hasRedirected.current) return;
+        
+        // Wait for auth to finish loading
         if (authLoading) return;
         if (!profileLoaded) return;
         if (!currentUser) return;
         if (!userType) return;
-        if (location.pathname !== '/') return;
-        if (hasRedirected.current) return; // Critical: prevent multiple redirects
         
-        console.log('🔍 Landing page - User is logged in, redirecting to dashboard...');
-        console.log('User type:', userType);
-        
-        // Mark as redirected immediately to prevent re-execution
-        hasRedirected.current = true;
-        
-        // Use setTimeout to defer navigation and prevent render loop
-        const redirectTimer = setTimeout(() => {
-            if (userType === 'employer') {
-                // Redirect employers to their dashboard
-                navigate('/employer', { replace: true });
-            } else if (userType === 'jobseeker') {
-                // Redirect jobseekers to their dashboard
-                navigate('/jobseeker', { replace: true });
-            } else if (userType === 'admin') {
-                // Both admin and super_admin use admin subdomain (admin.pesdosurigao.online)
-                // Redirect to admin subdomain dashboard
-                const currentHost = window.location.hostname;
-                if (currentHost.startsWith('admin.')) {
-                    // Already on admin subdomain, just navigate to dashboard
-                    navigate('/dashboard', { replace: true });
-                } else {
-                    // On main domain, redirect to admin subdomain
-                    // Extract base domain (e.g., "pesdosurigao.online" from "pesdosurigao.online" or "www.pesdosurigao.online")
-                    const baseDomain = currentHost.replace(/^(www\.|admin\.)/, '');
-                    const adminHost = `admin.${baseDomain}`;
-                    window.location.href = `https://${adminHost}/dashboard`;
-                }
-            }
-        }, 0);
-        
-        return () => clearTimeout(redirectTimer);
-        // Use stable dependencies - currentUser?.id instead of currentUser object
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // Perform redirect
+        performRedirect(userType);
+    // Use stable primitive values only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authLoading, profileLoaded, currentUser?.id, userType, location.pathname]);
 
     // Show loading screen while checking authentication or redirecting
