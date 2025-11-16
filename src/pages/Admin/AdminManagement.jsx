@@ -284,7 +284,8 @@ const AdminManagement = () => {
     return (
       <div className="admin-management">
         <div className="loading-screen">
-          <p>Loading...</p>
+          <div className="loading-spinner"></div>
+          <p>Loading admin management...</p>
         </div>
       </div>
     );

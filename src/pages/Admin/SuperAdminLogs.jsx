@@ -198,6 +198,17 @@ const SuperAdminLogs = () => {
     return labels[actionType] || actionType;
   };
 
+  if (loading) {
+    return (
+      <div className="super-admin-logs">
+        <div className="loading-screen">
+          <div className="loading-spinner"></div>
+          <p>Loading system logs...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (adminRole !== 'super_admin') {
     return (
       <div className="super-admin-logs">
