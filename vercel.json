@@ -1,6 +1,14 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "redirects": [
+    {
+      "source": "/admin(.*)",
+      "has": [{ "type": "host", "value": "pesdosurigao.online" }],
+      "destination": "https://admin.pesdosurigao.online$1",
+      "permanent": true
+    }
   ]
 }
 

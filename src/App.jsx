@@ -24,33 +24,50 @@ import './styles/responsive.css';
 
 
 function App() {
-    return (
-        <Router>
-            <AuthProvider>
-                <Routes>
-                    <Route path="/" element={<LandingPage />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route path="/signup" element={<SignUp />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/login/jobseeker" element={<JobseekerLogin />} />
-                    <Route path="/login/employer" element={<EmployerLogin />} />
-                    <Route path="/jobseeker" element={<JobseekerDashboard />} />
-                    <Route path="/employer" element={<EmployerDashboard />} />
-                    <Route path="/admin" element={<AdminLanding />} />
-                    <Route path="/admin/dashboard" element={<AdminDashboard />} />
-                    <Route path="/admin/users" element={<UserManagement />} />
-                    <Route path="/admin/jobs" element={<JobManagementSimplified />} />
-                    <Route path="/admin/verification" element={<EmployerVerificationSimple />} />
-                    <Route path="/admin/analytics" element={<AdminAnalytics />} />
-                    <Route path="/admin/logs" element={<SuperAdminLogs />} />
-                    <Route path="/admin/settings" element={<AdminManagement />} />
-                    <Route path="/auth/callback" element={<AuthCallback />} />
-                    <Route path="/forgot-password" element={<ForgotPassword />} />
-                    <Route path="/reset-password" element={<ResetPassword />} />
-                </Routes>
-            </AuthProvider>
-        </Router>
-    );
+  const host =
+    typeof window !== 'undefined' && window.location
+      ? window.location.hostname
+      : '';
+  const isAdminHost = host.startsWith('admin.');
+
+  return (
+    <Router>
+      <AuthProvider>
+        {isAdminHost ? (
+          <Routes>
+            {/* Admin-only host routes */}
+            <Route path="/" element={<AdminLanding />} />
+            <Route path="/dashboard" element={<AdminDashboard />} />
+            <Route path="/users" element={<UserManagement />} />
+            <Route path="/jobs" element={<JobManagementSimplified />} />
+            <Route path="/verification" element={<EmployerVerificationSimple />} />
+            <Route path="/analytics" element={<AdminAnalytics />} />
+            <Route path="/logs" element={<SuperAdminLogs />} />
+            <Route path="/settings" element={<AdminManagement />} />
+            {/* Common auth callback/password routes if used on admin host */}
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+          </Routes>
+        ) : (
+          <Routes>
+            {/* Public site routes */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/login/jobseeker" element={<JobseekerLogin />} />
+            <Route path="/login/employer" element={<EmployerLogin />} />
+            <Route path="/jobseeker" element={<JobseekerDashboard />} />
+            <Route path="/employer" element={<EmployerDashboard />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+          </Routes>
+        )}
+      </AuthProvider>
+    </Router>
+  );
 }
 
 export default App;
