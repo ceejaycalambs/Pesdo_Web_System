@@ -105,8 +105,24 @@ const AdminDashboard = () => {
       // Check if user is an admin
       const userType = userData.usertype || userData.userType;
 
-      // If userType not yet available, wait for profile to load instead of redirecting
+      // Set adminEmail early so component can render even if userType is not yet available
+      if (authUser.email && !adminEmail) {
+        setAdminEmail(authUser.email);
+      }
+
+      // If userType not yet available, try to use localStorage role as fallback
+      // This prevents blank screen when navigating between admin pages
       if (!userType) {
+        const cachedRole = localStorage.getItem('admin_role');
+        if (cachedRole && authUser.email) {
+          // We have cached role and email, allow rendering while waiting for userType
+          setAdminRole(cachedRole);
+          setAdminEmail(authUser.email);
+          setLoading(false);
+          // Still return early, but component will render because adminEmail is set
+          return;
+        }
+        // No cached data, wait for profile to load
         setLoading(true);
         return;
       }
@@ -333,11 +349,13 @@ const AdminDashboard = () => {
       setAdminRole(null);
       
       console.log('Admin logout completed - Supabase session cleared');
-      navigate('/admin');
+      const host = typeof window !== 'undefined' ? window.location.hostname : '';
+      navigate(host.startsWith('admin.') ? '/' : '/admin');
     } catch (error) {
       console.error('Error during admin logout:', error);
       // Still navigate even if there's an error
-      navigate('/admin');
+      const host = typeof window !== 'undefined' ? window.location.hostname : '';
+      navigate(host.startsWith('admin.') ? '/' : '/admin');
     }
   };
 

@@ -16,6 +16,12 @@ const SuperAdminLogs = () => {
     dateFrom: '',
     dateTo: ''
   });
+  
+  // Get correct paths based on host
+  const host = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isAdminHost = host.startsWith('admin.');
+  const loginPath = isAdminHost ? '/' : '/admin';
+  const dashboardPath = isAdminHost ? '/dashboard' : '/admin/dashboard';
 
   useEffect(() => {
     checkSuperAdmin();
@@ -86,18 +92,15 @@ const SuperAdminLogs = () => {
           localStorage.setItem('admin_role', 'super_admin');
         } else {
           // Not super_admin, redirect to dashboard
-          const host = typeof window !== 'undefined' ? window.location.hostname : '';
-          navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
+          navigate(dashboardPath);
         }
       } else {
         // Error fetching profile or not an admin
-        const host = typeof window !== 'undefined' ? window.location.hostname : '';
-        navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
+        navigate(dashboardPath);
       }
     } else {
       // No user, redirect to login
-      const host = typeof window !== 'undefined' ? window.location.hostname : '';
-      navigate(host.startsWith('admin.') ? '/' : '/admin');
+      navigate(loginPath);
     }
   };
 
@@ -215,10 +218,7 @@ const SuperAdminLogs = () => {
           </div>
           <div className="header-right">
             <button
-              onClick={() => {
-                const host = typeof window !== 'undefined' ? window.location.hostname : '';
-                navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
-              }}
+              onClick={() => navigate(dashboardPath)}
               className="back-btn"
             >
               ← Back to Dashboard

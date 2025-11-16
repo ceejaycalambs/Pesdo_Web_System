@@ -1472,10 +1472,7 @@ const AdminAnalytics = () => {
                 🔄 Refresh
               </button>
               <button
-                onClick={() => {
-                  const host = typeof window !== 'undefined' ? window.location.hostname : '';
-                  navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
-                }}
+                onClick={() => navigate(dashboardPath)}
                 className="analytics-back-btn"
               >
                 ← Back to Dashboard
