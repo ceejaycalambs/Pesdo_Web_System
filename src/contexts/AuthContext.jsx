@@ -593,9 +593,9 @@ export function AuthProvider({ children }) {
             .from('employer_profiles')
             .select('*')
             .eq('id', data.user.id)
-            .single();
+            .maybeSingle();
 
-          if (!employerResult.error && employerResult.data) {
+          if (employerResult && !employerResult.error && employerResult.data) {
             console.log('✅ Employer profile fetched:', employerResult.data);
             const userType = employerResult.data.usertype || 'employer';
             setUserData({...employerResult.data, userType});
@@ -614,9 +614,9 @@ export function AuthProvider({ children }) {
               .from('jobseeker_profiles')
               .select('*')
               .eq('id', data.user.id)
-              .single();
+              .maybeSingle();
 
-            if (!jobseekerResult.error && jobseekerResult.data) {
+            if (jobseekerResult && !jobseekerResult.error && jobseekerResult.data) {
               console.log('✅ Jobseeker profile fetched:', jobseekerResult.data);
               const userType = jobseekerResult.data.usertype || 'jobseeker';
               setUserData({...jobseekerResult.data, userType});

@@ -13,7 +13,7 @@ const JobseekerLogin = () => {
   const navigate = useNavigate();
   const auth = useAuth();
 
-  const { login, logout } = auth || {};
+  const { login } = auth || {};
 
   // Clear form fields when component mounts
   useEffect(() => {
@@ -22,16 +22,8 @@ const JobseekerLogin = () => {
     setError('');
   }, []);
 
-  // On mount, ensure any existing session is cleared so user always logs in explicitly
-  useEffect(() => {
-    (async () => {
-      try {
-        await logout?.(true);
-      } catch {
-        // ignore
-      }
-    })();
-  }, [logout]);
+  // Note: We don't need to clear session on mount because the login function
+  // already clears any existing session before authenticating
 
   const handleSubmit = async (e) => {
     e.preventDefault();
