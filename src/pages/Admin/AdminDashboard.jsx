@@ -352,17 +352,19 @@ const AdminDashboard = () => {
     );
   }
 
+  const base = window.location.hostname.startsWith('admin.') ? '' : '/admin';
+
   const navItems = [
-    { path: '/admin/dashboard', label: 'Dashboard', icon: '📊', exact: true },
-    { path: '/admin/users', label: 'User Management', icon: '👥' },
-    { path: '/admin/jobs', label: 'Manage Jobs', icon: '💼' },
-    { path: '/admin/verification', label: 'Employer Verification', icon: '🔍' },
-    { path: '/admin/analytics', label: 'Analytics', icon: '📈' },
+    { path: `${base}/dashboard`, label: 'Dashboard', icon: '📊', exact: true },
+    { path: `${base}/users`, label: 'User Management', icon: '👥' },
+    { path: `${base}/jobs`, label: 'Manage Jobs', icon: '💼' },
+    { path: `${base}/verification`, label: 'Employer Verification', icon: '🔍' },
+    { path: `${base}/analytics`, label: 'Analytics', icon: '📈' },
   ];
 
   const superAdminNavItems = [
-    { path: '/admin/logs', label: 'System Logs', icon: '📋' },
-    { path: '/admin/settings', label: 'Admin Management', icon: '⚙️' },
+    { path: `${base}/logs`, label: 'System Logs', icon: '📋' },
+    { path: `${base}/settings`, label: 'Admin Management', icon: '⚙️' },
   ];
 
   const isActive = (path, exact = false, query = null) => {
@@ -373,9 +375,9 @@ const AdminDashboard = () => {
     if (query) {
       return location.pathname === pathOnly && location.search.includes(query);
     }
-    // For dashboard, match exactly
-    if (pathOnly === '/admin/dashboard') {
-      return location.pathname === '/admin/dashboard';
+    // For dashboard, match exactly based on base
+    if (pathOnly === `${base}/dashboard`) {
+      return location.pathname === `${base}/dashboard`;
     }
     return location.pathname.startsWith(pathOnly);
   };

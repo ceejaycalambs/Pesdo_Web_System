@@ -303,7 +303,10 @@ const EmployerVerificationSimple = () => {
           </div>
           <button 
             className="back-btn"
-            onClick={() => navigate('/admin/dashboard')}
+            onClick={() => {
+              const host = typeof window !== 'undefined' ? window.location.hostname : '';
+              navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
+            }}
           >
             ← Back to Dashboard
           </button>

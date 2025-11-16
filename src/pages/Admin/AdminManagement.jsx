@@ -87,11 +87,13 @@ const AdminManagement = () => {
           setLoading(false);
         } else {
           // Not super_admin, redirect to dashboard
-          navigate('/admin/dashboard');
+          const host = typeof window !== 'undefined' ? window.location.hostname : '';
+          navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
         }
       } else {
         // Error fetching profile or not an admin
-        navigate('/admin/dashboard');
+        const host = typeof window !== 'undefined' ? window.location.hostname : '';
+        navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
       }
     } else {
       // No user, redirect to login
@@ -303,7 +305,13 @@ const AdminManagement = () => {
             <p>Create and manage admin accounts</p>
           </div>
           <div className="header-right">
-            <button onClick={() => navigate('/admin/dashboard')} className="back-btn">
+            <button
+              onClick={() => {
+                const host = typeof window !== 'undefined' ? window.location.hostname : '';
+                navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
+              }}
+              className="back-btn"
+            >
               ← Back to Dashboard
             </button>
           </div>

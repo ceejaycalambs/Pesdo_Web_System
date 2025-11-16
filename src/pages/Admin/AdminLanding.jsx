@@ -28,8 +28,9 @@ const AdminLanding = () => {
       localStorage.setItem('admin_login_time', Date.now().toString());
       localStorage.setItem('admin_email', email);
       
-      // Navigate to admin dashboard
-      navigate('/admin/dashboard');
+      // Navigate to admin dashboard (host-based: admin subdomain uses '/dashboard')
+      const host = typeof window !== 'undefined' ? window.location.hostname : '';
+      navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
     } catch (err) {
       console.error('Admin login error:', err);
       setError(err.message || 'Invalid admin credentials. Please check your email and password.');
