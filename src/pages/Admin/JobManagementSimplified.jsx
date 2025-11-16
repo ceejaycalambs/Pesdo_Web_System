@@ -641,14 +641,31 @@ const JobManagementSimplified = () => {
     try {
       setLoading(true);
 
+      // Step 1: Get list of existing employer IDs
+      const { data: employerRows, error: employerErr } = await supabase
+        .from('employer_profiles')
+        .select('id');
+      if (employerErr) throw employerErr;
+      const existingEmployerIds = (employerRows || []).map((r) => r.id).filter(Boolean);
+
+      // If no employers exist, return empty job lists early
+      if (!existingEmployerIds.length) {
+        setPendingJobs([]);
+        setApprovedJobs([]);
+        setLoading(false);
+        return;
+      }
+
       const [pendingResult, approvedResult] = await Promise.all([
         supabase
           .from('jobvacancypending')
           .select('*')
+          .in('employer_id', existingEmployerIds)
           .order('created_at', { ascending: false }),
         supabase
           .from('jobs')
           .select('*')
+          .in('employer_id', existingEmployerIds)
           .order('created_at', { ascending: false })
       ]);
 

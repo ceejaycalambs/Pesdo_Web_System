@@ -139,18 +139,33 @@ export const supabaseService = {
     // Jobs
     jobs: {
       getAll: async () => {
+        // Fetch existing employer IDs and filter jobs by those IDs
+        const { data: employerRows, error: employerErr } = await supabase
+          .from('employer_profiles')
+          .select('id')
+        if (employerErr) throw employerErr
+        const employerIds = (employerRows || []).map(r => r.id).filter(Boolean)
+        if (!employerIds.length) return []
         const { data, error } = await supabase
           .from('jobs')
-          .select('*, employer_profiles!inner(id)')
+          .select('*')
+          .in('employer_id', employerIds)
           .order('created_at', { ascending: false })
         if (error) throw error
         return data || []
       },
 
       getRecentJobs: async (limit = 3) => {
+        const { data: employerRows, error: employerErr } = await supabase
+          .from('employer_profiles')
+          .select('id')
+        if (employerErr) throw employerErr
+        const employerIds = (employerRows || []).map(r => r.id).filter(Boolean)
+        if (!employerIds.length) return []
         const { data, error } = await supabase
           .from('jobs')
-          .select('*, employer_profiles!inner(id)')
+          .select('*')
+          .in('employer_id', employerIds)
           .order('created_at', { ascending: false })
           .limit(limit)
         if (error) throw error

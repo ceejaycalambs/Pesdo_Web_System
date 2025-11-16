@@ -30,25 +30,30 @@ BEGIN
   END IF;
 
   -- First, delete or update any jobs that reference this user via foreign key
-  -- Check if there are jobs with posted_by referencing this user
+  -- Support both schemas: jobs.employer_id (current) and jobs.posted_by (legacy)
   SELECT COUNT(*) INTO job_count
   FROM public.jobs
-  WHERE posted_by = user_id_found;
+  WHERE employer_id = user_id_found OR posted_by = user_id_found;
   
   IF job_count > 0 THEN
     RAISE NOTICE 'Found % jobs referencing this user. Deleting them first...', job_count;
     -- Delete applications for these jobs first
     DELETE FROM public.applications 
-    WHERE job_id IN (SELECT id FROM public.jobs WHERE posted_by = user_id_found);
+    WHERE job_id IN (
+      SELECT id FROM public.jobs 
+      WHERE employer_id = user_id_found OR posted_by = user_id_found
+    );
     -- Delete the jobs
-    DELETE FROM public.jobs WHERE posted_by = user_id_found;
+    DELETE FROM public.jobs 
+    WHERE employer_id = user_id_found OR posted_by = user_id_found;
     RAISE NOTICE 'Deleted % jobs and their applications', job_count;
   END IF;
 
   -- Also check and delete from jobvacancypending if it has a posted_by column
   -- (Adjust column name if different)
   BEGIN
-    DELETE FROM public.jobvacancypending WHERE posted_by = user_id_found;
+    DELETE FROM public.jobvacancypending 
+    WHERE posted_by = user_id_found OR employer_id = user_id_found;
   EXCEPTION
     WHEN undefined_column THEN
       -- Column doesn't exist, skip

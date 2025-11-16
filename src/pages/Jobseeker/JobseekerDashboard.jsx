@@ -175,6 +175,13 @@ const JobseekerDashboard = () => {
     setProfileMessage({ type: null, text: '' });
 
     try {
+      // First, fetch existing employer IDs to ensure we don't show jobs from deleted employers
+      const { data: employerRows, error: employerErr } = await supabase
+        .from('employer_profiles')
+        .select('id');
+      if (employerErr) throw employerErr;
+      const existingEmployerIds = (employerRows || []).map(r => r.id).filter(Boolean);
+
       const [profileRes, jobsRes, applicationsRes] = await Promise.all([
         supabase
           .from('jobseeker_profiles')
@@ -184,6 +191,7 @@ const JobseekerDashboard = () => {
         supabase
           .from('jobs')
           .select('*')
+          .in('employer_id', existingEmployerIds.length ? existingEmployerIds : ['00000000-0000-0000-0000-000000000000'])
           .eq('status', 'approved')
           .order('created_at', { ascending: false }),
         supabase
@@ -262,7 +270,8 @@ const JobseekerDashboard = () => {
       if (missingJobIds.length) {
         const { data: extraJobs, error: extraJobsError } = await supabase
           .from('jobs')
-          .select('*, employer_profiles!inner(id)')
+          .select('*')
+          .in('employer_id', existingEmployerIds.length ? existingEmployerIds : ['00000000-0000-0000-0000-000000000000'])
           .in('id', Array.from(new Set(missingJobIds)));
 
         if (extraJobsError) {
