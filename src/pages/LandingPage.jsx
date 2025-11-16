@@ -2,12 +2,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import './LandingPage.css';
 import Logo_pesdo from '../assets/Logo_pesdo.png';
 import Pesdo_Office from '../assets/Pesdo_Office.png';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 const LandingPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const auth = useAuth();
     const { currentUser, userData, loading: authLoading, profileLoaded } = auth || {};
     const [headerScrolled, setHeaderScrolled] = useState(false);
@@ -23,6 +24,14 @@ const LandingPage = () => {
     const [employers, setEmployers] = useState([]);
     const [loadingEmployers, setLoadingEmployers] = useState(true);
     const hasRedirected = useRef(false);
+    const userTypeRef = useRef(null);
+
+    // Store userType in ref to avoid dependency issues
+    useEffect(() => {
+        if (userData?.userType) {
+            userTypeRef.current = userData.userType;
+        }
+    }, [userData?.userType]);
 
     // Redirect authenticated users to their dashboard
     useEffect(() => {
@@ -34,24 +43,31 @@ const LandingPage = () => {
         // Prevent multiple redirects
         if (hasRedirected.current) return;
         
+        // Don't redirect if already on a dashboard route
+        const currentPath = location.pathname;
+        if (currentPath === '/employer' || currentPath === '/jobseeker' || currentPath === '/dashboard') {
+            return;
+        }
+        
         // If user is authenticated and profile is loaded, redirect to dashboard
-        if (currentUser && profileLoaded && userData) {
+        if (currentUser && profileLoaded && userTypeRef.current) {
             console.log('🔍 Landing page - User is logged in, redirecting to dashboard...');
-            console.log('User type:', userData.userType);
+            console.log('User type:', userTypeRef.current);
             
             hasRedirected.current = true;
             
-            if (userData.userType === 'employer') {
+            const userType = userTypeRef.current;
+            
+            if (userType === 'employer') {
                 // Redirect employers to their dashboard
                 navigate('/employer', { replace: true });
-            } else if (userData.userType === 'jobseeker') {
+            } else if (userType === 'jobseeker') {
                 // Redirect jobseekers to their dashboard
                 navigate('/jobseeker', { replace: true });
-            } else if (userData.userType === 'admin') {
+            } else if (userType === 'admin') {
                 // Both admin and super_admin use admin subdomain (admin.pesdosurigao.online)
                 // Redirect to admin subdomain dashboard
                 const currentHost = window.location.hostname;
-                let adminHost;
                 if (currentHost.startsWith('admin.')) {
                     // Already on admin subdomain, just navigate to dashboard
                     navigate('/dashboard', { replace: true });
@@ -59,16 +75,19 @@ const LandingPage = () => {
                     // On main domain, redirect to admin subdomain
                     // Extract base domain (e.g., "pesdosurigao.online" from "pesdosurigao.online" or "www.pesdosurigao.online")
                     const baseDomain = currentHost.replace(/^(www\.|admin\.)/, '');
-                    adminHost = `admin.${baseDomain}`;
+                    const adminHost = `admin.${baseDomain}`;
                     window.location.href = `https://${adminHost}/dashboard`;
                 }
             }
         }
+        // Only depend on stable values
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentUser, userData, authLoading, profileLoaded]);
+    }, [!!currentUser, profileLoaded, authLoading, location.pathname]);
 
     // Show loading screen while checking authentication or redirecting
-    if (authLoading || (currentUser && profileLoaded && userData)) {
+    const shouldShowLoading = authLoading || (currentUser && profileLoaded && userData?.userType && !hasRedirected.current);
+    
+    if (shouldShowLoading) {
         return (
             <div className="landing-page-loading">
                 <div className="landing-page-loading-content">
