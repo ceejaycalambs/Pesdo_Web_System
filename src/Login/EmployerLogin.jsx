@@ -13,7 +13,7 @@ const EmployerLogin = () => {
   const navigate = useNavigate();
   const auth = useAuth();
 
-  const { login, logout, currentUser, userData, loading: authLoading, profileLoaded } = auth || {};
+  const { login, logout } = auth || {};
 
   // Clear form fields when component mounts
   useEffect(() => {
@@ -22,28 +22,16 @@ const EmployerLogin = () => {
     setError('');
   }, []);
 
-  // Handle redirection after successful login
+  // On mount, ensure any existing session is cleared so user always logs in explicitly
   useEffect(() => {
-    console.log('Login useEffect - Auth state:', { 
-      currentUser: !!currentUser, 
-      authLoading, 
-      profileLoaded,
-      userData: userData ? { userType: userData.userType } : null
-    });
-
-    if (currentUser && !authLoading && profileLoaded) {
-      const type = userData?.userType;
-      console.log('✅ Authenticated session detected on EmployerLogin. userType:', type);
-      if (type === 'employer') {
-        console.log('Redirecting to employer dashboard');
-        navigate('/employer');
-      } else if (type) {
-        console.warn('Account type mismatch on EmployerLogin, signing out existing session...', type);
-        // Clear any non-employer session to prevent wrong redirects
-        logout?.(true).catch(() => {});
+    (async () => {
+      try {
+        await logout?.(true);
+      } catch {
+        // ignore
       }
-    }
-  }, [currentUser, userData, authLoading, profileLoaded, navigate, auth]);
+    })();
+  }, [logout]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -65,8 +53,8 @@ const EmployerLogin = () => {
       // Clear form fields after successful login
       setEmail('');
       setPassword('');
-      // Login successful - user will be redirected by the useEffect
       setLoading(false);
+      navigate('/employer');
     } catch (err) {
       console.error('Login error:', err);
       let errorMessage = 'Failed to login. Please try again.';
