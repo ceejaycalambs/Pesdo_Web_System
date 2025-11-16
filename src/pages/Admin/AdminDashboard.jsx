@@ -28,12 +28,12 @@ const AdminDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, userData]);
 
-  // Fetch dashboard data only when admin is authenticated
+  // Fetch dashboard data only when admin is authenticated AND role is known
   useEffect(() => {
-    if (adminEmail && authUser) {
+    if (adminEmail && authUser && adminRole) {
       fetchDashboardData();
     }
-  }, [adminEmail, authUser]);
+  }, [adminEmail, authUser, adminRole]);
 
   // Prevent trackpad gesture scrolling
   useEffect(() => {
@@ -103,6 +103,13 @@ const AdminDashboard = () => {
     if (authUser && userData) {
       // Check if user is an admin
       const userType = userData.usertype || userData.userType;
+
+      // If userType not yet available, wait for profile to load instead of redirecting
+      if (!userType) {
+        setLoading(true);
+        return;
+      }
+
       if (userType !== 'admin') {
         // Not an admin, redirect to login
         navigate('/admin');
@@ -114,11 +121,12 @@ const AdminDashboard = () => {
       // Always fetch role from database to ensure it's correct for the current user
       // Don't trust localStorage as it might be stale or from a different user
       try {
+        // Use maybeSingle to avoid 406 when RLS hides a row (no row visible)
         const { data: adminProfile, error: profileError } = await supabase
           .from('admin_profiles')
           .select('role')
           .eq('id', authUser.id)
-          .single();
+          .maybeSingle();
         
         if (!profileError && adminProfile) {
           const role = adminProfile.role || 'admin';

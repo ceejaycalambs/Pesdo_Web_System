@@ -289,8 +289,7 @@ const LandingPage = () => {
                 id="main" 
                 className="main-content"
                 style={{
-                    paddingTop: mobileMenuOpen ? '180px' : '100px',
-                    transition: 'padding-top 0.3s ease'
+                    paddingTop: 0
                 }}
             >
                 {/* Welcome Section */}

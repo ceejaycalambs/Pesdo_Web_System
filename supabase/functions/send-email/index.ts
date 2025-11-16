@@ -1,123 +1,93 @@
-/**
- * Supabase Edge Function: Send Custom Emails
- * 
- * This function sends custom emails using Resend (free tier: 3,000 emails/month)
- * 
- * Deploy:
- * supabase functions deploy send-email
- * 
- * Set secrets:
- * supabase secrets set RESEND_API_KEY=your_resend_api_key
- */
+// deno-lint-ignore-file no-explicit-any
+// Minimal Supabase Edge Function to send transactional emails via Brevo API.
+// Reads BREVO_API_KEY from environment. Expects JSON body: { to, subject, html }.
+// Optional: { cc, bcc, text, senderName }
+// Note: We declare Deno for local linting; Supabase Edge provides it at runtime.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const Deno: any;
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+interface SendEmailRequest {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  cc?: string[];
+  bcc?: string[];
+  senderName?: string;
+}
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+function badRequest(message: string, details?: Record<string, unknown>) {
+  return new Response(JSON.stringify({ error: message, details }), {
+    status: 400,
+    headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+}
 
-serve(async (req) => {
-  // Handle CORS
+function ok(data: unknown) {
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+}
+
+const SENDER_EMAIL = 'no-reply@pesdosurigao.online';
+
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
     });
   }
 
+  let payload: SendEmailRequest;
   try {
-    const { to, subject, html, text } = await req.json();
-
-    if (!to || !subject || !html) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: to, subject, html' }),
-        {
-          status: 400,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
-    }
-
-    // Option 1: Use Resend (Free tier: 3,000 emails/month)
-    if (RESEND_API_KEY) {
-      const resendUrl = 'https://api.resend.com/emails';
-      
-      const response = await fetch(resendUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'PESDO <noreply@resend.dev>', // Free tier uses resend.dev domain
-          to,
-          subject,
-          html,
-          text: text || html.replace(/<[^>]*>/g, ''), // Strip HTML for text version
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error('Resend error:', data);
-        return new Response(
-          JSON.stringify({ error: data.message || 'Failed to send email' }),
-          {
-            status: response.status,
-            headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, id: data.id }),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
-    }
-
-    // Option 2: Fallback - Log email (for development)
-    console.log('Email would be sent:', { to, subject, html });
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Email service not configured. Email logged to console.',
-        to,
-        subject 
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
-  } catch (error) {
-    console.error('Error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
+    payload = await req.json();
+  } catch {
+    return badRequest('Invalid JSON body');
   }
-});
 
+  const { to, subject, html, text, cc, bcc, senderName } = payload || {};
+  if (!to || !subject || !html) return badRequest('Missing required fields: to, subject, html');
+
+  const apiKey = Deno.env.get('BREVO_API_KEY');
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'BREVO_API_KEY is not configured' }), {
+      status: 500,
+      headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+  }
+
+  const body = {
+    sender: { email: SENDER_EMAIL, name: senderName || 'PESDO Surigao' },
+    to: [{ email: to }],
+    subject,
+    htmlContent: html,
+    ...(text ? { textContent: text } : {}),
+    ...(Array.isArray(cc) && cc.length ? { cc: cc.map((e) => ({ email: e })) } : {}),
+    ...(Array.isArray(bcc) && bcc.length ? { bcc: bcc.map((e) => ({ email: e })) } : {}),
+  };
+
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    return new Response(JSON.stringify({ error: 'Failed to send email', provider: errText }), {
+      status: 502,
+      headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+  }
+
+  const data = await res.json().catch(() => ({}));
+  return ok({ success: true, provider: data });
+});

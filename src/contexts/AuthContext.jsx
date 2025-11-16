@@ -295,7 +295,7 @@ export function AuthProvider({ children }) {
   }
 
   // Check account type after authentication but before setting user state
-  async function checkAccountTypeAfterAuth(userId, expectedUserType) {
+  async function checkAccountTypeAfterAuth(userId, expectedUserType, userEmail = null) {
     if (!expectedUserType) {
       console.log('⚠️ No expected user type provided, skipping validation');
       return true; // No validation needed if no expected type
@@ -305,13 +305,25 @@ export function AuthProvider({ children }) {
     
     // Check the appropriate table first based on expected user type
     if (expectedUserType === 'admin') {
-      const adminResult = await supabase
+      let adminResult = await supabase
         .from('admin_profiles')
-        .select('usertype')
+        .select('usertype, role')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (!adminResult.error && adminResult.data) {
+      // If not found by id (or RLS hides it), try by email as fallback
+      if ((!adminResult || !adminResult.data) && userEmail) {
+        const byEmail = await supabase
+          .from('admin_profiles')
+          .select('usertype, role')
+          .eq('email', userEmail)
+          .maybeSingle();
+        if (byEmail && byEmail.data) {
+          adminResult = byEmail;
+        }
+      }
+
+      if (adminResult && adminResult.data) {
         const actualUserType = adminResult.data.usertype || 'admin';
         console.log('📋 Found in admin_profiles:', actualUserType);
         
@@ -327,7 +339,7 @@ export function AuthProvider({ children }) {
         .from('employer_profiles')
         .select('usertype')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (!employerResult.error && employerResult.data) {
         const actualUserType = employerResult.data.usertype || 'employer';
@@ -345,7 +357,7 @@ export function AuthProvider({ children }) {
         .from('jobseeker_profiles')
         .select('usertype')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (!jobseekerResult.error && jobseekerResult.data) {
         const actualUserType = jobseekerResult.data.usertype || 'jobseeker';
@@ -366,7 +378,7 @@ export function AuthProvider({ children }) {
         .from('admin_profiles')
         .select('userType')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (!adminResult.error && adminResult.data) {
         const actualUserType = adminResult.data.userType || 'admin';
@@ -425,11 +437,10 @@ export function AuthProvider({ children }) {
       return true;
     }
 
-    // If not found in either table, check if this is a deleted account
-    // If expectedUserType is provided, we should have found a profile
-    if (expectedUserType) {
-      console.error('❌ Profile not found for user type:', expectedUserType);
-      throw new Error('Your account has been deleted. Please contact support if you believe this is an error.');
+    // If not found in either table, treat as not found (but don't mislabel as deleted for admins)
+    if (expectedUserType === 'admin') {
+      console.error('❌ Admin profile not found during validation');
+      throw new Error('Admin profile not found for this account. Please ensure your admin profile exists and matches your auth email.');
     }
     
     // If no expected user type, allow login (new user or legacy account)
@@ -520,40 +531,13 @@ export function AuthProvider({ children }) {
       // Check account type AFTER setting session but BEFORE setting user state
       if (expectedUserType) {
         console.log('🔍 About to check account type for user ID:', data.user.id, 'Expected:', expectedUserType);
-        await checkAccountTypeAfterAuth(data.user.id, expectedUserType);
+        await checkAccountTypeAfterAuth(data.user.id, expectedUserType, data.user.email);
         console.log('✅ Account type check passed, proceeding with login');
       } else {
         console.log('⚠️ No expected user type, skipping account type validation');
       }
       
-      // On first confirmed login: show in-app banner and send a welcome email (once per user)
-      try {
-        const isConfirmed = !!(authData.user.email_confirmed_at || authData.user.confirmed_at);
-        const bannerKey = `pesdo_welcome_shown_${data.user.id}`;
-        const alreadyShown = localStorage.getItem(bannerKey) === '1';
-        if (isConfirmed && !alreadyShown) {
-          // Set banner payload
-          localStorage.setItem('pesdo_welcome_banner', JSON.stringify({
-            text: 'Email confirmed — welcome to PESDO!'
-          }));
-          localStorage.setItem(bannerKey, '1');
-
-          // Fire-and-forget welcome email
-          try {
-            await supabase.functions.invoke('send-email', {
-              body: {
-                to: data.user.email,
-                subject: 'Welcome to PESDO',
-                html: `<p>Hi,</p><p>Your email has been confirmed. Welcome to PESDO!</p><p><a href="${window.location.origin}">Open your dashboard</a></p>`
-              }
-            });
-          } catch (welcomeErr) {
-            console.warn('Welcome email failed (non-fatal):', welcomeErr);
-          }
-        }
-      } catch (bannerErr) {
-        console.warn('Welcome banner/email setup failed (non-fatal):', bannerErr);
-      }
+      // Removed global banner and automatic welcome email
 
       console.log('Setting user state...');
       setCurrentUser(data.user);
@@ -565,17 +549,35 @@ export function AuthProvider({ children }) {
         console.log('Setting basic user data for:', data.user.email);
         
         // Try admin first, then employer, then jobseeker
-        const adminResult = await supabase
+        let adminResult = await supabase
           .from('admin_profiles')
           .select('*')
           .eq('id', data.user.id)
-          .single();
+          .maybeSingle();
 
-        if (!adminResult.error && adminResult.data) {
+        // If not found by id, try by email (in case of legacy/migrated rows)
+        if ((!adminResult || !adminResult.data) && email) {
+          const byEmail = await supabase
+            .from('admin_profiles')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+          if (byEmail && byEmail.data) {
+            adminResult = byEmail;
+          }
+        }
+
+        if (adminResult && adminResult.data) {
           console.log('✅ Admin profile fetched:', adminResult.data);
           const userType = adminResult.data.usertype || 'admin';
           const adminRole = adminResult.data.role || 'admin';
-          setUserData({...adminResult.data, userType: userType});
+          // Preserve role and a convenience boolean
+          setUserData({
+            ...adminResult.data,
+            userType: userType,
+            role: adminRole,
+            isSuperAdmin: adminRole === 'super_admin'
+          });
           setProfileLoaded(true);
           
           // Log successful login
@@ -630,16 +632,9 @@ export function AuthProvider({ children }) {
             } else {
               console.log('❌ No profile found in any table');
               
-              // If expectedUserType was provided, the profile should exist
-              // This means the account was deleted
-              if (expectedUserType) {
-                console.error('❌ Profile not found for deleted account');
-                // Sign out the user
-                await supabase.auth.signOut();
-                setCurrentUser(null);
-                setUserData(null);
-                setProfileLoaded(false);
-                throw new Error('Your account has been deleted. Please contact support if you believe this is an error.');
+              if (expectedUserType === 'admin') {
+                // Do not auto-signout; surface a clear error for admins
+                throw new Error('Admin profile not found for this account. Please ensure your admin profile exists and matches your auth email. If this is a migrated account, ask a super admin to verify your admin profile.');
               }
               
               // Set basic user data with default userType (for new users)
@@ -886,55 +881,84 @@ export function AuthProvider({ children }) {
         try {
           console.log('Fetching user profile for:', session.user.email);
           
-          // Try to find user profile in all tables (admin, employer, jobseeker)
-          // Check all tables in parallel for better performance
-          Promise.allSettled([
-            supabase.from('admin_profiles').select('*').eq('id', session.user.id).single(),
-            supabase.from('employer_profiles').select('*').eq('id', session.user.id).single(),
-            supabase.from('jobseeker_profiles').select('*').eq('id', session.user.id).single()
-          ]).then((results) => {
-            // Check admin first
-            if (results[0].status === 'fulfilled' && !results[0].value.error && results[0].value.data) {
-              console.log('✅ Auth state change - Admin profile fetched:', results[0].value.data);
-              setUserData({...results[0].value.data, userType: results[0].value.data.userType || 'admin'});
+          (async () => {
+            try {
+              // Admin by id
+              let { data: ap, error: apErr } = await supabase
+                .from('admin_profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .maybeSingle();
+
+              // Fallback: admin by email
+              if ((!ap || apErr) && session.user.email) {
+                const byEmail = await supabase
+                  .from('admin_profiles')
+                  .select('*')
+                  .eq('email', session.user.email)
+                  .maybeSingle();
+                if (!byEmail.error && byEmail.data) {
+                  ap = byEmail.data;
+                }
+              }
+
+              if (ap) {
+                console.log('✅ Auth state change - Admin profile fetched:', ap);
+                const role = ap.role || 'admin';
+                setUserData({
+                  ...ap,
+                  userType: ap.userType || ap.usertype || 'admin',
+                  role,
+                  isSuperAdmin: role === 'super_admin'
+                });
+                setProfileLoaded(true);
+                return;
+              }
+
+              // Employer
+              const { data: ep } = await supabase
+                .from('employer_profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .maybeSingle();
+              if (ep) {
+                console.log('✅ Auth state change - Employer profile fetched:', ep);
+                setUserData({ ...ep, userType: ep.usertype || 'employer' });
+                setProfileLoaded(true);
+                return;
+              }
+
+              // Jobseeker
+              const { data: jp } = await supabase
+                .from('jobseeker_profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .maybeSingle();
+              if (jp) {
+                console.log('✅ Auth state change - Jobseeker profile fetched:', jp);
+                setUserData({ ...jp, userType: jp.usertype || 'jobseeker' });
+                setProfileLoaded(true);
+                return;
+              }
+
+              // Default
+              console.log('⚠️ Auth state change - No profile found in any table, using default');
+              setUserData({
+                id: session.user.id,
+                email: session.user.email,
+                userType: 'jobseeker'
+              });
               setProfileLoaded(true);
-              return;
-            }
-            
-            // Check employer
-            if (results[1].status === 'fulfilled' && !results[1].value.error && results[1].value.data) {
-              console.log('✅ Auth state change - Employer profile fetched:', results[1].value.data);
-              setUserData({...results[1].value.data, userType: results[1].value.data.usertype || 'employer'});
+            } catch (err) {
+              console.log('❌ Auth state change - Profile fetch error:', err.message);
+              setUserData({
+                id: session.user.id,
+                email: session.user.email,
+                userType: 'jobseeker'
+              });
               setProfileLoaded(true);
-              return;
             }
-            
-            // Check jobseeker
-            if (results[2].status === 'fulfilled' && !results[2].value.error && results[2].value.data) {
-              console.log('✅ Auth state change - Jobseeker profile fetched:', results[2].value.data);
-              setUserData({...results[2].value.data, userType: results[2].value.data.usertype || 'jobseeker'});
-              setProfileLoaded(true);
-              return;
-            }
-            
-            // No profile found in any table
-            console.log('⚠️ Auth state change - No profile found in any table, using default');
-            setUserData({
-              id: session.user.id,
-              email: session.user.email,
-              userType: 'jobseeker' // Default to jobseeker if no profile found
-            });
-            setProfileLoaded(true);
-          }).catch(err => {
-            console.log('❌ Auth state change - Profile fetch error:', err.message);
-            // Set basic user data as fallback
-            setUserData({
-              id: session.user.id,
-              email: session.user.email,
-              userType: 'jobseeker' // Default to jobseeker if fetch fails
-            });
-            setProfileLoaded(true);
-          });
+          })();
         } catch (error) {
           console.error('Error in auth state handler:', error);
           // Keep basic user data, don't reset

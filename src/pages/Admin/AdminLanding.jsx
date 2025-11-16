@@ -104,15 +104,20 @@ const AdminLanding = () => {
               <p>Enter your credentials to continue</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="admin-login-form">
+            <form onSubmit={handleSubmit} className="admin-login-form" autoComplete="off">
               <div className="form-group">
                 <label htmlFor="admin-email">Email Address</label>
                 <input
                   id="admin-email"
                   type="email"
+                  name="admin-email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email address"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  inputMode="email"
                   required
                   disabled={loading}
                   className="admin-input"
@@ -125,9 +130,13 @@ const AdminLanding = () => {
                   <input
                     id="admin-password"
                     type={showPassword ? 'text' : 'password'}
+                    name="admin-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
+                    autoComplete="new-password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
                     required
                     disabled={loading}
                     className="admin-input"

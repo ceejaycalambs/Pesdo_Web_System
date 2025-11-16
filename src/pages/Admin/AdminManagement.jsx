@@ -411,7 +411,7 @@ const AdminManagement = () => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateAdmin} className="admin-form">
+            <form onSubmit={handleCreateAdmin} className="admin-form" autoComplete="off">
               <div className="form-group">
                 <label>
                   First Name <span className="required">*</span>
@@ -450,7 +450,11 @@ const AdminManagement = () => {
                   value={formData.email}
                   onChange={handleInputChange}
                   required
-                  placeholder="admin@example.com"
+                  placeholder="Enter admin email address"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  inputMode="email"
                 />
               </div>
 
@@ -465,7 +469,10 @@ const AdminManagement = () => {
                   onChange={handleInputChange}
                   required
                   minLength={6}
-                  placeholder="Minimum 6 characters"
+                  placeholder="Enter a strong password"
+                  autoComplete="new-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                 />
               </div>
 
@@ -480,6 +487,9 @@ const AdminManagement = () => {
                   onChange={handleInputChange}
                   required
                   placeholder="Re-enter password"
+                  autoComplete="new-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                 />
               </div>
 

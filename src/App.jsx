@@ -20,7 +20,6 @@ import AuthCallback from './pages/AuthCallback';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import { AuthProvider } from './contexts/AuthContext.jsx';
-import GlobalBanner from './components/GlobalBanner.jsx';
 import './styles/responsive.css';
 
 
@@ -28,7 +27,6 @@ function App() {
     return (
         <Router>
             <AuthProvider>
-                <GlobalBanner />
                 <Routes>
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/register" element={<Register />} />

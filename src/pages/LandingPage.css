@@ -35,7 +35,7 @@ html {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: calc(100vh - 100px);
+    min-height: 100vh;
     padding: 80px 20px;
     position: relative;
     z-index: 2;
@@ -639,9 +639,7 @@ html {
 
 /* HEADER - KEEP AS IS */
 .header {
-    position: fixed;
-    top: 0;
-    left: 0;
+    position: relative; /* attach header to normal document flow */
     width: 100%;
     z-index: 1000;
     padding: 20px 40px;
@@ -876,8 +874,8 @@ nav a {
 /* Mobile Navigation */
 .mobile-nav {
     display: none;
-    position: fixed;
-    top: 80px;
+    position: absolute; /* open directly below the header */
+    top: 100%;
     left: 0;
     right: 0;
     background: linear-gradient(90deg, #005177, #0079a1);
