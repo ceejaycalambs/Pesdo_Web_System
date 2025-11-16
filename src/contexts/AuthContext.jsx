@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { supabase } from '../supabase';
 import { logLogin, logActivity } from '../utils/activityLogger';
@@ -842,9 +842,30 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const lastProcessedSession = useRef(null);
+  const loadingRef = useRef(loading);
+  const profileLoadedRef = useRef(profileLoaded);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+  
+  useEffect(() => {
+    profileLoadedRef.current = profileLoaded;
+  }, [profileLoaded]);
+  
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', { event, hasUser: !!session?.user, isLoggingIn, accountTypeMismatch });
+      
+      // Skip if this is the same session we just processed
+      const sessionKey = session?.user?.id || 'no-user';
+      if (lastProcessedSession.current === sessionKey && event === 'INITIAL_SESSION') {
+        console.log('⏸️ Skipping duplicate INITIAL_SESSION event');
+        return;
+      }
+      lastProcessedSession.current = sessionKey;
       
       // Skip processing if we're in the middle of a login process or had account type mismatch
       if (isLoggingIn || accountTypeMismatch) {
@@ -868,13 +889,22 @@ export function AuthProvider({ children }) {
         return;
       }
       
-      setCurrentUser(session?.user || null);
+      // Only update currentUser if it actually changed
+      setCurrentUser(prev => {
+        const newUser = session?.user || null;
+        if (prev?.id === newUser?.id) {
+          return prev; // Return same reference if unchanged
+        }
+        return newUser;
+      });
       
       if (session?.user) {
         // Double-check that we're not in a mismatch state before fetching profile
         if (accountTypeMismatch) {
           console.log('⏸️ Skipping profile fetch due to account type mismatch');
-          setLoading(false);
+          if (loadingRef.current) {
+            setLoading(false);
+          }
           return;
         }
         
@@ -920,7 +950,9 @@ export function AuthProvider({ children }) {
                   }
                   return newUserData;
                 });
-                setProfileLoaded(true);
+                if (!profileLoadedRef.current) {
+                  setProfileLoaded(true);
+                }
                 return;
               }
 
@@ -940,7 +972,7 @@ export function AuthProvider({ children }) {
                   }
                   return newUserData;
                 });
-                setProfileLoaded(true);
+                setProfileLoaded(prev => prev ? prev : true);
                 return;
               }
 
@@ -960,7 +992,7 @@ export function AuthProvider({ children }) {
                   }
                   return newUserData;
                 });
-                setProfileLoaded(true);
+                setProfileLoaded(prev => prev ? prev : true);
                 return;
               }
 
@@ -978,7 +1010,7 @@ export function AuthProvider({ children }) {
                 }
                 return defaultUserData;
               });
-              setProfileLoaded(true);
+              setProfileLoaded(prev => prev ? prev : true);
             } catch (err) {
               console.log('❌ Auth state change - Profile fetch error:', err.message);
               const errorUserData = {
@@ -993,7 +1025,7 @@ export function AuthProvider({ children }) {
                 }
                 return errorUserData;
               });
-              setProfileLoaded(true);
+              setProfileLoaded(prev => prev ? prev : true);
             }
           })();
         } catch (error) {
@@ -1002,16 +1034,19 @@ export function AuthProvider({ children }) {
         }
       } else {
         setUserData(null);
+        setProfileLoaded(false);
       }
       
-      // Always set loading to false after handling auth state
-      console.log('🔄 Setting loading to false after auth state change');
-      setLoading(false);
+      // Only set loading to false if it's currently true (prevents unnecessary updates)
+      if (loadingRef.current) {
+        setLoading(false);
+      }
     });
 
     return () => subscription?.unsubscribe();
   }, [isLoggingIn, accountTypeMismatch]);
 
+  // Create stable context value - only recalculate when actual data changes
   const value = useMemo(() => ({
     currentUser,
     userData,
@@ -1024,7 +1059,7 @@ export function AuthProvider({ children }) {
     updateUserProfile,
     updateProfilePicture,
     refreshUserProfile
-  }), [currentUser, userData, loading, profileLoaded]);
+  }), [currentUser, userData, loading, profileLoaded, signup, login, logout, updateUserProfile, updateProfilePicture, refreshUserProfile]);
 
   return (
     <AuthContext.Provider value={value}>
