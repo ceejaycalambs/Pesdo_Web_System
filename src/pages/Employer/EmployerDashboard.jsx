@@ -76,6 +76,59 @@ const getApplicationStatusClass = (status) => {
   return normalized.replaceAll(/\s+/g, '-');
 };
 
+// Format phone number for display (remove +63 prefix, show only 9XXXXXXXXX)
+const formatPhoneForDisplay = (phone) => {
+  if (!phone) return '';
+  // Remove +63 prefix if present
+  let cleaned = String(phone).replace(/[\s-]/g, '');
+  if (cleaned.startsWith('+63')) {
+    cleaned = cleaned.substring(3);
+  } else if (cleaned.startsWith('63')) {
+    cleaned = cleaned.substring(2);
+  }
+  // Remove leading 0 if present (shouldn't happen but just in case)
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.substring(1);
+  }
+  return cleaned;
+};
+
+// Format phone number for storage (ensure +639XXXXXXXXX format)
+const formatPhoneForStorage = (phone) => {
+  if (!phone) return null;
+  let cleaned = String(phone).replace(/[\s-]/g, '');
+  
+  // Remove +63 prefix if present to normalize
+  if (cleaned.startsWith('+63')) {
+    cleaned = cleaned.substring(3);
+  } else if (cleaned.startsWith('63')) {
+    cleaned = cleaned.substring(2);
+  }
+  
+  // Remove leading 0 if present
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.substring(1);
+  }
+  
+  // Ensure it starts with 9 and has 10 digits
+  if (cleaned.startsWith('9') && cleaned.length === 10) {
+    return `+63${cleaned}`;
+  }
+  
+  // If already in +63 format, return as is
+  if (cleaned.startsWith('+63')) {
+    return cleaned;
+  }
+  
+  // If it's a valid 10-digit number starting with 9, add +63
+  if (/^9\d{9}$/.test(cleaned)) {
+    return `+63${cleaned}`;
+  }
+  
+  // Return null if invalid
+  return null;
+};
+
 const defaultDocumentState = {
   bir: { uploading: false, success: '', error: '' },
   permit: { uploading: false, success: '', error: '' },
@@ -262,7 +315,7 @@ const EmployerDashboard = () => {
         contact_person_name: data?.contact_person_name || '',
         contact_position: data?.contact_position || '',
         telephone_number: data?.telephone_number || '',
-        mobile_number: data?.mobile_number || '',
+        mobile_number: formatPhoneForDisplay(data?.mobile_number || ''),
         fax_number: data?.fax_number || '',
         contact_email: data?.contact_email || ''
       });
@@ -412,10 +465,23 @@ const EmployerDashboard = () => {
   };
 
   const handleProfileInputChange = (field, value) => {
-    setProfileForm((prev) => ({
-      ...prev,
-      [field]: value
-    }));
+    // Special handling for mobile_number - only allow digits, max 10 digits starting with 9
+    if (field === 'mobile_number') {
+      // Remove all non-digit characters
+      let cleaned = value.replace(/\D/g, '');
+      // Only allow if it starts with 9 and has max 10 digits
+      if (cleaned === '' || (cleaned.startsWith('9') && cleaned.length <= 10)) {
+        setProfileForm((prev) => ({
+          ...prev,
+          [field]: cleaned
+        }));
+      }
+    } else {
+      setProfileForm((prev) => ({
+        ...prev,
+        [field]: value
+      }));
+    }
   };
 
   const handleSaveProfile = async (event) => {
@@ -426,8 +492,12 @@ const EmployerDashboard = () => {
     setProfileMessage({ type: null, text: '' });
 
     try {
+      // Format mobile_number for storage (+639XXXXXXXXX)
+      const mobileNumberValue = formatPhoneForStorage(profileForm.mobile_number);
+      
       const payload = {
         ...profileForm,
+        mobile_number: mobileNumberValue,
         updated_at: new Date().toISOString()
       };
 
@@ -1055,12 +1125,24 @@ const EmployerDashboard = () => {
             </label>
             <label className="form-field">
               <span>Mobile Number</span>
-              <input
-                type="text"
-                value={profileForm.mobile_number}
-                onChange={(e) => handleProfileInputChange('mobile_number', e.target.value)}
-                disabled={!isEditingProfile}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ 
+                  fontSize: '16px', 
+                  fontWeight: '500', 
+                  color: '#666',
+                  userSelect: 'none',
+                  padding: '8px 4px'
+                }}>+63</span>
+                <input
+                  type="tel"
+                  value={profileForm.mobile_number}
+                  onChange={(e) => handleProfileInputChange('mobile_number', e.target.value)}
+                  placeholder="9XXXXXXXXX"
+                  disabled={!isEditingProfile}
+                  style={{ flex: 1 }}
+                  maxLength={10}
+                />
+              </div>
             </label>
             <label className="form-field">
               <span>Fax Number</span>

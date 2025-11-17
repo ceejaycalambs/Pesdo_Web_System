@@ -1,13 +1,13 @@
 /**
  * SMS Service
- * Handles sending SMS via Twilio
+ * Handles sending SMS via Android SMS Gateway
  */
 
 import { supabase } from '../supabase';
 
 /**
- * Send SMS via Twilio
- * NOTE: This calls a Supabase Edge Function to keep Twilio credentials secure
+ * Send SMS via Android SMS Gateway
+ * NOTE: This calls a Supabase Edge Function to keep SMS Gateway credentials secure
  * 
  * @param {Object} options - SMS options
  * @param {string} options.to - Recipient phone number (E.164 format: +639123456789)
@@ -17,7 +17,7 @@ import { supabase } from '../supabase';
 export const sendSMS = async ({ to, message }) => {
   try {
     // Call Supabase Edge Function (Recommended)
-    // This keeps your Twilio credentials secure on the server
+    // This keeps your SMS Gateway credentials secure on the server
     const { data, error } = await supabase.functions.invoke('send-sms', {
       body: { to, message }
     });
@@ -37,7 +37,7 @@ export const sendSMS = async ({ to, message }) => {
 };
 
 /**
- * Format phone number to E.164 format (required by Twilio)
+ * Format phone number to E.164 format (required by SMS Gateway)
  * @param {string} phoneNumber - Phone number in any format
  * @param {string} countryCode - Default country code (e.g., 'PH' for Philippines)
  * @returns {string} - Formatted phone number
