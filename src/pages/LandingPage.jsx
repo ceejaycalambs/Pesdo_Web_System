@@ -497,6 +497,7 @@ const LandingPage = () => {
                         <h4>Contact</h4>
                         <p>Public Employment Service Office</p>
                         <p>Surigao City, Philippines</p>
+                        <p>Email: peso_surigao@yahoo.com</p>
                     </div>
                 </div>
                 <div className="footer-bottom">
