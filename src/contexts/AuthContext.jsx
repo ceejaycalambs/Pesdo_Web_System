@@ -30,6 +30,7 @@ export function AuthProvider({ children }) {
 
   // Helper function to fetch user profile
   // Checks jobseeker first (most common), then employer, then admin
+  // Returns: { success: boolean, profile: object|null, userType: string|null }
   const fetchUserProfile = async (userId, email) => {
     try {
       console.log('📥 Fetching profile for:', email, 'User ID:', userId);
@@ -90,23 +91,25 @@ export function AuthProvider({ children }) {
       
       if (jp) {
         console.log('✅ Jobseeker profile loaded:', jp);
-        setUserData({ ...jp, userType: jp.usertype || 'jobseeker' });
+        const profileData = { ...jp, userType: jp.usertype || 'jobseeker' };
+        setUserData(profileData);
         setProfileLoaded(true);
         console.log('✅ profileLoaded set to true');
-        return true;
+        return { success: true, profile: profileData, userType: 'jobseeker' };
       }
       
       // If query timed out but we have a user ID, set basic profile to allow app to continue
       if (jpError?.message?.includes('timeout')) {
         console.warn('⚠️ Query timed out - setting basic profile to allow app to continue');
-        setUserData({
+        const fallbackProfile = {
           id: userId,
           email: email,
           userType: 'jobseeker'
-        });
+        };
+        setUserData(fallbackProfile);
         setProfileLoaded(true);
         console.log('✅ Basic profile set (timeout fallback)');
-        return true; // Return true so app can continue
+        return { success: true, profile: fallbackProfile, userType: 'jobseeker' };
       }
       
       console.log('ℹ️ No jobseeker profile found, checking employer...');
@@ -163,23 +166,25 @@ export function AuthProvider({ children }) {
       
       if (ep) {
         console.log('✅ Employer profile loaded:', ep);
-        setUserData({ ...ep, userType: ep.usertype || 'employer' });
+        const profileData = { ...ep, userType: ep.usertype || 'employer' };
+        setUserData(profileData);
         setProfileLoaded(true);
         console.log('✅ profileLoaded set to true');
-        return true;
+        return { success: true, profile: profileData, userType: 'employer' };
       }
       
       // If employer query timed out but we have a user ID, set basic profile to allow app to continue
       if (epError?.message?.includes('timeout')) {
         console.warn('⚠️ Employer query timed out - setting basic profile to allow app to continue');
-        setUserData({
+        const fallbackProfile = {
           id: userId,
           email: email,
           userType: 'employer'
-        });
+        };
+        setUserData(fallbackProfile);
         setProfileLoaded(true);
         console.log('✅ Basic employer profile set (timeout fallback)');
-        return true;
+        return { success: true, profile: fallbackProfile, userType: 'employer' };
       }
       
       // Check admin by id with timeout protection
@@ -285,35 +290,55 @@ export function AuthProvider({ children }) {
       if (ap) {
         const role = ap.role || 'admin';
         console.log('✅ Admin profile loaded:', { id: ap.id, email: ap.email, role });
-        setUserData({
+        const profileData = {
           ...ap,
           userType: ap.userType || ap.usertype || 'admin',
           role,
           isSuperAdmin: role === 'super_admin'
-        });
+        };
+        setUserData(profileData);
         setProfileLoaded(true);
         console.log('✅ profileLoaded set to true');
-        return true;
+        // Return the correct userType based on role
+        const userTypeForLog = role === 'super_admin' ? 'super_admin' : 'admin';
+        return { success: true, profile: profileData, userType: userTypeForLog, role };
+      }
+      
+      // If admin query timed out but we have a user ID, set basic profile to allow app to continue
+      if (apErr?.message?.includes('timeout') && !ap) {
+        console.warn('⚠️ Admin query timed out - setting basic profile to allow app to continue');
+        const fallbackProfile = {
+          id: userId,
+          email: email,
+          userType: 'admin',
+          role: 'admin'
+        };
+        setUserData(fallbackProfile);
+        setProfileLoaded(true);
+        console.log('✅ Basic admin profile set (timeout fallback)');
+        return { success: true, profile: fallbackProfile, userType: 'admin', role: 'admin' };
       }
 
       // Default - no profile found, assume jobseeker
-      setUserData({
+      const defaultProfile = {
         id: userId,
         email: email,
         userType: 'jobseeker'
-      });
+      };
+      setUserData(defaultProfile);
       setProfileLoaded(true);
-      return true;
+      return { success: true, profile: defaultProfile, userType: 'jobseeker' };
     } catch (err) {
       console.error('Exception in fetchUserProfile:', err);
       // Even on error, set basic user data so app can continue
-      setUserData({
+      const errorProfile = {
         id: userId,
         email: email,
         userType: 'jobseeker'
-      });
+      };
+      setUserData(errorProfile);
       setProfileLoaded(true);
-      return false;
+      return { success: false, profile: errorProfile, userType: 'jobseeker' };
     }
   };
 
@@ -852,36 +877,25 @@ export function AuthProvider({ children }) {
         
         // Try admin first, then employer, then jobseeker
         // Use fetchUserProfile for consistency and timeout protection
-        const profileFetched = await fetchUserProfile(data.user.id, email);
+        const profileResult = await fetchUserProfile(data.user.id, email);
         
-        // Wait a moment for state to update, then get the userType from state
-        // Since fetchUserProfile sets userData state, we need to check it after a brief delay
-        // or we can determine userType from the expectedUserType and profile fetch result
+        // Determine userType for login log from the profile result
         let logUserType = expectedUserType || 'jobseeker';
         
-        // If profile was fetched, determine userType from the result
-        // fetchUserProfile sets userData state, so we'll check it after state updates
-        // For now, use expectedUserType, but we'll also check userData after a brief delay
-        if (profileFetched) {
-          // Use a small delay to allow state to update, then check userData
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Check userData state to get the actual userType (may be from timeout fallback)
-          const currentUserData = userData;
-          if (currentUserData) {
-            const userTypeForLog = currentUserData.userType || expectedUserType || 'jobseeker';
-            const roleForLog = currentUserData.role;
-            
-            // Determine the correct userType for login log
-            if (roleForLog === 'super_admin') {
-              logUserType = 'super_admin';
-            } else if (userTypeForLog === 'admin' || roleForLog === 'admin') {
-              logUserType = 'admin';
-            } else if (userTypeForLog === 'employer') {
-              logUserType = 'employer';
-            } else {
-              logUserType = 'jobseeker';
-            }
+        if (profileResult && profileResult.success) {
+          // Use the userType directly from the fetch result
+          if (profileResult.userType) {
+            logUserType = profileResult.userType;
+          } else if (profileResult.role === 'super_admin') {
+            logUserType = 'super_admin';
+          } else if (profileResult.profile?.role === 'super_admin') {
+            logUserType = 'super_admin';
+          } else if (profileResult.profile?.userType === 'admin' || profileResult.profile?.role === 'admin') {
+            logUserType = 'admin';
+          } else if (profileResult.profile?.userType === 'employer') {
+            logUserType = 'employer';
+          } else {
+            logUserType = profileResult.profile?.userType || 'jobseeker';
           }
         }
         
@@ -1120,8 +1134,8 @@ export function AuthProvider({ children }) {
           console.log('✅ Found existing session on mount, fetching profile:', session.user.email);
           setCurrentUser(session.user);
           setProfileLoaded(false); // Reset to ensure fresh fetch
-          const profileFetched = await fetchUserProfile(session.user.id, session.user.email);
-          console.log('📊 checkExistingSession - Profile fetch completed:', profileFetched ? 'Success' : 'Failed');
+          const profileResult = await fetchUserProfile(session.user.id, session.user.email);
+          console.log('📊 checkExistingSession - Profile fetch completed:', profileResult?.success ? 'Success' : 'Failed');
           if (isMounted) {
             hasInitializedRef.current = true;
           }
@@ -1211,8 +1225,8 @@ export function AuthProvider({ children }) {
             console.log('✅ Session found, fetching profile for:', session.user.email);
             setCurrentUser(session.user);
             setProfileLoaded(false); // Reset to ensure fresh fetch
-            const profileFetched = await fetchUserProfile(session.user.id, session.user.email);
-            console.log('📊 INITIAL_SESSION - Profile fetch completed:', profileFetched ? 'Success' : 'Failed');
+            const profileResult = await fetchUserProfile(session.user.id, session.user.email);
+            console.log('📊 INITIAL_SESSION - Profile fetch completed:', profileResult?.success ? 'Success' : 'Failed');
             hasInitializedRef.current = true;
             isProcessingRef.current = false;
             return;
@@ -1238,8 +1252,8 @@ export function AuthProvider({ children }) {
         
         if (session?.user) {
           console.log('🔄 SIGNED_IN - Fetching profile for:', session.user.email);
-          const profileFetched = await fetchUserProfile(session.user.id, session.user.email);
-          console.log('📊 SIGNED_IN - Profile fetch completed:', profileFetched ? 'Success' : 'Failed');
+          const profileResult = await fetchUserProfile(session.user.id, session.user.email);
+          console.log('📊 SIGNED_IN - Profile fetch completed:', profileResult?.success ? 'Success' : 'Failed');
           hasInitializedRef.current = true;
           isProcessingRef.current = false;
         } else {
