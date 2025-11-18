@@ -798,17 +798,220 @@ input[type="date"]::-ms-expand {
   gap: 12px;
 }
 
+/* Responsive Styles for Employer Dashboard */
+@media (max-width: 1024px) {
+  .employer-dashboard .js-sidebar {
+    width: 240px;
+  }
+
+  .employer-dashboard .js-main {
+    margin-left: 240px;
+  }
+
+  .dashboard-panel {
+    padding: 20px;
+  }
+
+  .company-banner {
+    flex-direction: row;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .employer-dashboard .js-sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 20px 16px;
+    gap: 16px;
+  }
+
+  .employer-dashboard .sidebar-header {
+    flex: 1 1 100%;
+    text-align: center;
+  }
+
+  .employer-dashboard .sidebar-nav {
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .employer-dashboard .nav-item {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 140px;
+    justify-content: center;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .employer-dashboard .js-main {
+    margin-left: 0;
+    padding: 20px 16px 40px;
+    width: 100%;
+  }
+
+  .dashboard-panel {
+    padding: 18px;
+  }
+
+  .company-banner {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .company-logo-wrapper {
+    width: 100px;
+    height: 100px;
+  }
+
+  .company-display-name {
+    font-size: 1.2rem;
+  }
+
+  .panel-stack {
+    gap: 24px;
+  }
+
+  .dashboard-panel h2 {
+    font-size: 1.2rem;
+  }
+
+  .section-title {
+    font-size: 1rem;
+  }
+}
+
 @media (max-width: 640px) {
+  .employer-dashboard .js-sidebar {
+    padding: 16px 12px;
+    gap: 12px;
+  }
+
+  .employer-dashboard .nav-item {
+    flex: 1 1 100%;
+    font-size: 13px;
+    padding: 10px;
+  }
+
+  .employer-dashboard .js-main {
+    padding: 16px 12px 32px;
+  }
+
   .employer-dashboard .company-banner {
     flex-direction: column;
     align-items: flex-start;
     gap: 18px;
+    padding: 16px;
+  }
+
+  .company-logo-wrapper {
+    width: 80px;
+    height: 80px;
+    font-size: 24px;
+  }
+
+  .company-display-name {
+    font-size: 1.1rem;
+  }
+
+  .company-display-email {
+    font-size: 0.9rem;
+  }
+
+  .dashboard-panel {
+    padding: 16px;
+  }
+
+  .dashboard-panel h2 {
+    font-size: 1.1rem;
+  }
+
+  .section-title {
+    font-size: 0.95rem;
   }
 
   .job-footer {
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-responsive table {
+    min-width: 600px;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .employer-dashboard .js-sidebar {
+    padding: 12px 10px;
+  }
+
+  .employer-dashboard .nav-item {
+    font-size: 12px;
+    padding: 8px;
+  }
+
+  .employer-dashboard .js-main {
+    padding: 12px 10px 24px;
+  }
+
+  .dashboard-panel {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .company-banner {
+    padding: 12px;
+  }
+
+  .company-logo-wrapper {
+    width: 70px;
+    height: 70px;
+    font-size: 20px;
+  }
+
+  .company-display-name {
+    font-size: 1rem;
+  }
+
+  .dashboard-panel h2 {
+    font-size: 1rem;
+  }
+
+  .section-title {
+    font-size: 0.9rem;
+  }
+
+  .panel-stack {
+    gap: 20px;
   }
 }
 

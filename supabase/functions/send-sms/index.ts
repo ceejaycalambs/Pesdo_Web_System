@@ -1,5 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-// Supabase Edge Function: Send SMS via SMS-Gate.app API
+// Supabase Edge Function: Send SMS via Twilio API
 // 
 // Deploy this function:
 // 1. Install Supabase CLI: npm install -g supabase
@@ -8,9 +8,12 @@
 // 4. Deploy: supabase functions deploy send-sms
 // 
 // Set secrets:
-// supabase secrets set SMS_GATEWAY_USERNAME=7ONAGO
-// supabase secrets set SMS_GATEWAY_PASSWORD=25mmhgtotnjptk
-// supabase secrets set SMS_GATEWAY_DEVICE_ID=JOfKfT_s1aT-kOYRNVFjy
+// supabase secrets set TWILIO_ACCOUNT_SID=your_account_sid
+// supabase secrets set TWILIO_AUTH_TOKEN=your_auth_token
+// supabase secrets set TWILIO_PHONE_NUMBER=+1234567890
+//
+// Get credentials from: https://console.twilio.com
+// Free trial: $15.50 credits (~1,000 SMS)
 //
 // Note: We declare Deno for local linting; Supabase Edge provides it at runtime.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,12 +39,15 @@ function ok(data: unknown) {
 }
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests - MUST return 200 status
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
+    return new Response('', {
+      status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Max-Age': '86400',
       },
     });
   }
@@ -58,14 +64,30 @@ Deno.serve(async (req) => {
     return badRequest('Missing required fields: to, message');
   }
 
-  const username = Deno.env.get('SMS_GATEWAY_USERNAME');
-  const password = Deno.env.get('SMS_GATEWAY_PASSWORD');
-  const deviceId = Deno.env.get('SMS_GATEWAY_DEVICE_ID');
+  const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+  const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+  const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
 
-  if (!username || !password || !deviceId) {
+  console.log('🔐 Credentials check:', {
+    hasAccountSid: !!accountSid,
+    hasAuthToken: !!authToken,
+    hasPhoneNumber: !!twilioPhoneNumber,
+    accountSidLength: accountSid?.length || 0,
+    authTokenLength: authToken?.length || 0
+  });
+
+  if (!accountSid || !authToken || !twilioPhoneNumber) {
+    const missing: string[] = [];
+    if (!accountSid) missing.push('TWILIO_ACCOUNT_SID');
+    if (!authToken) missing.push('TWILIO_AUTH_TOKEN');
+    if (!twilioPhoneNumber) missing.push('TWILIO_PHONE_NUMBER');
+    
+    console.error('❌ Missing credentials:', missing);
     return new Response(
       JSON.stringify({ 
-        error: 'SMS Gateway credentials not configured. Set SMS_GATEWAY_USERNAME, SMS_GATEWAY_PASSWORD, and SMS_GATEWAY_DEVICE_ID secrets.' 
+        error: 'Twilio credentials not configured',
+        missing: missing,
+        message: `Set these secrets: ${missing.join(', ')}. Get them from https://console.twilio.com`
       }),
       {
         status: 500,
@@ -100,32 +122,58 @@ Deno.serve(async (req) => {
   
   const normalizedPhone = cleaned;
 
-  // SMS-Gate.app API endpoint
-  const apiUrl = 'https://api.sms-gate.app/mobile/v1';
-  const smsEndpoint = `${apiUrl}/send`;
+  // Twilio API endpoint
+  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
 
-  // Create Basic Auth header
-  const authString = btoa(`${username}:${password}`);
+  // Create Basic Auth header (Twilio uses Account SID:Auth Token)
+  const authString = btoa(`${accountSid}:${authToken}`);
+
+  // Log request details (without sensitive data)
+  console.log('📤 SMS Request:', {
+    endpoint: 'Twilio API',
+    phone: normalizedPhone,
+    messageLength: message.length,
+    fromNumber: twilioPhoneNumber
+  });
 
   try {
-    const response = await fetch(smsEndpoint, {
+    // Twilio requires form-urlencoded data
+    const formData = new URLSearchParams({
+      To: normalizedPhone,
+      From: twilioPhoneNumber,
+      Body: message,
+    });
+
+    console.log('📤 Sending SMS via Twilio:', {
+      to: normalizedPhone,
+      from: twilioPhoneNumber,
+      messageLength: message.length
+    });
+
+    const response = await fetch(twilioUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Basic ${authString}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        device_id: deviceId,
-        phone_number: normalizedPhone,
-        message: message,
-      }),
+      body: formData.toString(),
     });
+
+    console.log('📥 Response status:', response.status, response.statusText);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('SMS Gateway error:', errorText);
+      console.error('❌ Twilio error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
       return new Response(
-        JSON.stringify({ error: 'Failed to send SMS', details: errorText }),
+        JSON.stringify({ 
+          error: 'Failed to send SMS via Twilio', 
+          details: errorText,
+          status: response.status
+        }),
         {
           status: response.status || 502,
           headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -133,17 +181,35 @@ Deno.serve(async (req) => {
       );
     }
 
-    const data = await response.json().catch(() => ({ success: true }));
+    const data = await response.json().catch(() => {
+      console.warn('⚠️ Could not parse response as JSON, treating as success');
+      return { success: true };
+    });
+
+    console.log('✅ SMS sent successfully via Twilio:', {
+      messageId: data.sid || null,
+      phone: normalizedPhone,
+      status: data.status
+    });
+
     return ok({ 
       success: true, 
-      messageId: data.id || data.messageId || data.sid || null, 
+      messageId: data.sid || null, 
       phone: normalizedPhone,
+      status: data.status,
       response: data 
     });
   } catch (error) {
-    console.error('SMS Gateway request error:', error);
+    console.error('❌ Twilio request exception:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack?.substring(0, 200)
+    });
     return new Response(
-      JSON.stringify({ error: 'Failed to connect to SMS Gateway', details: error.message }),
+      JSON.stringify({ 
+        error: 'Failed to connect to Twilio', 
+        details: error.message
+      }),
       {
         status: 500,
         headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' },

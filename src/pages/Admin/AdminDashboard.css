@@ -640,24 +640,76 @@
   .users-table table {
     min-width: 500px;
   }
-  
+
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* Additional responsive enhancements */
+@media (max-width: 1024px) {
+  .admin-sidebar {
+    width: 240px;
+  }
+
+  .admin-content-wrapper {
+    margin-left: 240px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .admin-dashboard-main {
+    padding: 25px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-dashboard-main {
+    padding: 20px 15px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .stat-card {
+    padding: 18px;
+  }
+
+  .stat-card h3 {
+    font-size: 1.6rem;
+  }
+
+  .users-table {
+    font-size: 0.8rem;
+  }
+
+  .users-table table {
+    min-width: 450px;
+  }
+
   .users-table th,
   .users-table td {
     padding: 8px 6px;
   }
-  
-  .sidebar-footer {
-    padding: 12px 15px;
+
+  .header-content {
+    padding: 0 10px;
   }
-  
-  .user-email,
-  .user-role {
-    font-size: 0.85rem;
-  }
-  
-  .sidebar-logout {
-    padding: 10px 15px;
-    font-size: 0.9rem;
+
+  .header-left h1 {
+    font-size: 1.1rem;
   }
 }
 

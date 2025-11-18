@@ -1269,11 +1269,62 @@
   }
 }
 
-@media (max-width: 640px) {
-  .header-controls {
+@media (max-width: 768px) {
+  .js-sidebar {
     width: 100%;
+    height: auto;
+    position: relative;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 20px 16px;
+    gap: 16px;
+  }
+
+  .sidebar-header {
+    flex: 1 1 100%;
+    text-align: center;
+  }
+
+  .sidebar-nav {
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .nav-item {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 140px;
+    justify-content: center;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .js-main {
+    margin-left: 0;
+    padding: 20px 16px 40px;
+    width: 100%;
+  }
+
+  .cards-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .profile-avatar-banner {
     flex-direction: column;
-    align-items: stretch;
+    text-align: center;
+    padding: 24px 16px;
+  }
+
+  .profile-avatar-actions {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .header-controls {
+    flex-direction: column;
+    gap: 12px;
   }
 
   .header-controls input,
@@ -1281,23 +1332,137 @@
     width: 100%;
     min-width: unset;
   }
+}
+
+@media (max-width: 640px) {
+  .js-sidebar {
+    padding: 16px 12px;
+    gap: 12px;
+  }
+
+  .brand-mark {
+    font-size: 16px;
+    padding: 8px 10px;
+  }
+
+  .user-name {
+    font-size: 14px;
+  }
+
+  .user-email {
+    font-size: 12px;
+  }
+
+  .nav-item {
+    flex: 1 1 100%;
+    font-size: 13px;
+    padding: 10px;
+  }
+
+  .js-main {
+    padding: 16px 12px 32px;
+  }
+
+  .header-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .header-controls input,
+  .header-controls select {
+    width: 100%;
+    min-width: unset;
+    font-size: 14px;
+    padding: 10px 12px;
+  }
 
   .job-actions {
     flex-direction: column;
+    gap: 10px;
+  }
+
+  .job-actions button {
+    width: 100%;
   }
 
   .resume-card {
     flex-direction: column;
     align-items: stretch;
+    padding: 16px;
   }
 
   .resume-actions {
     flex-direction: column;
+    gap: 10px;
+  }
+
+  .resume-actions button {
+    width: 100%;
   }
 
   .form-actions {
     flex-direction: column-reverse;
     align-items: stretch;
+    gap: 10px;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+
+  .dashboard-panel {
+    padding: 16px;
+  }
+
+  .dashboard-panel h2 {
+    font-size: 1.2rem;
+  }
+
+  .section-title {
+    font-size: 1rem;
+  }
+
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .js-sidebar {
+    padding: 12px 10px;
+  }
+
+  .brand-mark {
+    font-size: 14px;
+    padding: 6px 8px;
+  }
+
+  .nav-item {
+    font-size: 12px;
+    padding: 8px;
+  }
+
+  .js-main {
+    padding: 12px 10px 24px;
+  }
+
+  .dashboard-panel {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .dashboard-panel h2 {
+    font-size: 1.1rem;
+  }
+
+  .section-title {
+    font-size: 0.95rem;
+  }
+
+  .profile-avatar-banner {
+    padding: 20px 12px;
   }
 }
 

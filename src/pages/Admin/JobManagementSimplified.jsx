@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
 import NotificationButton from '../../components/NotificationButton';
 import { logActivity } from '../../utils/activityLogger';
-import { sendJobApprovalSMS } from '../../services/smsService';
+import { sendJobApprovalSMS, sendApplicationStatusSMS } from '../../services/smsService';
 import './JobManagement.css';
 
 const JobManagementSimplified = () => {
@@ -290,7 +290,7 @@ const JobManagementSimplified = () => {
     try {
       const { data, error } = await supabase
         .from('jobseeker_profiles')
-        .select('id, first_name, last_name, suffix, email, bio, profile_picture_url, resume_url, preferred_jobs, status, gender, age, address')
+        .select('id, first_name, last_name, suffix, email, phone, bio, profile_picture_url, resume_url, preferred_jobs, status, gender, age, address')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -410,6 +410,42 @@ const JobManagementSimplified = () => {
             jobTitle: selectedJobForReferral.position_title || selectedJobForReferral.title
           }
         });
+      }
+
+      // Send SMS notification to jobseeker (non-blocking)
+      try {
+        // Get jobseeker profile for phone number
+        const jobseeker = jobseekers.find(js => js.id === jobseekerId);
+        
+        // Fetch employer profile for company name
+        const { data: employerProfile } = await supabase
+          .from('employer_profiles')
+          .select('business_name')
+          .eq('id', selectedJobForReferral.employer_id)
+          .single();
+
+        if (jobseeker?.phone && selectedJobForReferral) {
+          const jobseekerName = `${jobseeker.first_name || ''} ${jobseeker.last_name || ''}`.trim() || jobseeker.email || 'Jobseeker';
+          const companyName = employerProfile?.business_name || 'Company';
+          const jobTitle = selectedJobForReferral.position_title || selectedJobForReferral.title || 'Job Vacancy';
+
+          await sendApplicationStatusSMS(
+            jobseeker.phone,
+            jobseekerName,
+            jobTitle,
+            'referred',
+            companyName
+          );
+          console.log('✅ SMS notification sent to jobseeker for referral');
+        } else {
+          console.log('⚠️ SMS not sent - missing phone number or job data', {
+            hasPhone: !!jobseeker?.phone,
+            hasJob: !!selectedJobForReferral
+          });
+        }
+      } catch (smsError) {
+        // SMS failure should not block the main action
+        console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
       }
 
       // Refresh applications and jobseekers

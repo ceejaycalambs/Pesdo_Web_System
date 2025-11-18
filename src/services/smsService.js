@@ -16,22 +16,43 @@ import { supabase } from '../supabase';
  */
 export const sendSMS = async ({ to, message }) => {
   try {
+    console.log('📱 SMS Service: Attempting to send SMS', { 
+      to, 
+      messageLength: message?.length,
+      timestamp: new Date().toISOString()
+    });
+    
     // Call Supabase Edge Function (Recommended)
     // This keeps your SMS Gateway credentials secure on the server
+    console.log('🔗 SMS Service: Invoking Edge Function "send-sms"');
     const { data, error } = await supabase.functions.invoke('send-sms', {
       body: { to, message }
     });
 
+    console.log('📥 SMS Service: Edge Function response received', { 
+      hasData: !!data, 
+      hasError: !!error,
+      errorMessage: error?.message 
+    });
+
     if (error) {
-      console.error('❌ SMS sending error:', error);
+      console.error('❌ SMS Service: Error from Edge Function', {
+        message: error.message,
+        context: error.context,
+        status: error.status
+      });
       return { success: false, error: error.message };
     }
 
-    console.log('✅ SMS sent successfully');
+    console.log('✅ SMS Service: SMS sent successfully', data);
     return { success: true, data };
 
   } catch (error) {
-    console.error('Error sending SMS:', error);
+    console.error('❌ SMS Service: Exception occurred', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack?.substring(0, 300)
+    });
     return { success: false, error: error.message };
   }
 };
