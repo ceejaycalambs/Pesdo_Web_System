@@ -1269,41 +1269,112 @@
   }
 }
 
+/* Mobile Menu Toggle Button */
+.js-mobile-menu-toggle {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1001;
+  background: linear-gradient(180deg, #0b3a53 0%, #0f5a7a 100%);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.js-mobile-menu-toggle:hover {
+  background: linear-gradient(180deg, #0f5a7a 0%, #0b3a53 100%);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Sidebar Overlay for Mobile */
+.js-sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.js-sidebar-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
 @media (max-width: 768px) {
+  .js-mobile-menu-toggle {
+    display: block;
+  }
+
+  .js-sidebar-overlay {
+    display: block;
+  }
+
   .js-sidebar {
-    width: 100%;
-    height: auto;
-    position: relative;
-    flex-direction: row;
-    flex-wrap: wrap;
-    padding: 20px 16px;
-    gap: 16px;
+    width: 280px;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: -100%;
+    transition: left 0.3s ease;
+    z-index: 1000;
+    flex-direction: column;
+    padding: 32px 24px;
+    gap: 24px;
+    box-shadow: 4px 0 20px rgba(15, 50, 73, 0.5);
+  }
+
+  .js-sidebar.open {
+    left: 0;
   }
 
   .sidebar-header {
-    flex: 1 1 100%;
-    text-align: center;
+    flex: 0 0 auto;
+    text-align: left;
   }
 
   .sidebar-nav {
-    flex: 1 1 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex: 1;
+    flex-direction: column;
     gap: 8px;
+    overflow-y: auto;
   }
 
   .nav-item {
-    flex: 1 1 calc(50% - 4px);
-    min-width: 140px;
-    justify-content: center;
-    padding: 10px 12px;
-    font-size: 14px;
+    width: 100%;
+    justify-content: flex-start;
+    padding: 12px 14px;
+    font-size: 15px;
   }
 
   .js-main {
-    margin-left: 0;
-    padding: 20px 16px 40px;
+    margin-left: 0 !important;
+    padding: 60px 16px 40px;
     width: 100%;
+    height: auto;
+    min-height: 100vh;
+    overflow-y: visible;
+    position: relative;
+  }
+
+  .main-header {
+    padding-top: 0;
+    position: sticky;
+    top: 0;
+    background: #f5f7fb;
+    z-index: 10;
+    padding-bottom: 16px;
   }
 
   .cards-grid {

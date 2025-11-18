@@ -124,15 +124,48 @@ const resolveEmploymentStatus = (value) => {
 const JobseekerDashboard = () => {
   const { currentUser, userData, logout, profileLoaded } = useAuth();
   const jobseekerId = currentUser?.id;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Disable body scrolling to prevent double scrollbars
+  // Disable body scrolling on desktop, enable on mobile
   useEffect(() => {
-    document.body.style.overflowY = 'hidden';
-    document.body.style.height = '100vh';
+    const isMobile = window.innerWidth <= 768;
+    if (!isMobile) {
+      document.body.style.overflowY = 'hidden';
+      document.body.style.height = '100vh';
+    } else {
+      document.body.style.overflowY = 'auto';
+      document.body.style.height = '';
+    }
+    
+    const handleResize = () => {
+      const isMobileNow = window.innerWidth <= 768;
+      if (!isMobileNow) {
+        document.body.style.overflowY = 'hidden';
+        document.body.style.height = '100vh';
+      } else {
+        document.body.style.overflowY = 'auto';
+        document.body.style.height = '';
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
     return () => {
       document.body.style.overflowY = '';
       document.body.style.height = '';
+      window.removeEventListener('resize', handleResize);
     };
+  }, []);
+
+  // Close mobile menu when clicking overlay
+  useEffect(() => {
+    const handleOverlayClick = (e) => {
+      if (e.target.classList.contains('js-sidebar-overlay')) {
+        setMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', handleOverlayClick);
+    return () => document.removeEventListener('click', handleOverlayClick);
   }, []);
   
   // Wait for profile to load before proceeding
@@ -2025,7 +2058,18 @@ const JobseekerDashboard = () => {
 
   return (
     <div className="js-dashboard">
-      <aside className="js-sidebar">
+      <button 
+        className="js-mobile-menu-toggle"
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        aria-label="Toggle menu"
+      >
+        {mobileMenuOpen ? '✕' : '☰'}
+      </button>
+      <div 
+        className={`js-sidebar-overlay ${mobileMenuOpen ? 'open' : ''}`}
+        onClick={() => setMobileMenuOpen(false)}
+      />
+      <aside className={`js-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="brand-mark">Jobseeker Dashboard</div>
           {profileDisplayName || profileDisplayEmail ? (
@@ -2046,7 +2090,10 @@ const JobseekerDashboard = () => {
               key={item.key}
               type="button"
               className={`nav-item ${activeTab === item.key ? 'active' : ''}`}
-              onClick={() => setActiveTab(item.key)}
+              onClick={() => {
+                setActiveTab(item.key);
+                setMobileMenuOpen(false);
+              }}
             >
               <span className="nav-icon">{item.icon}</span>
               <span>{item.label}</span>
