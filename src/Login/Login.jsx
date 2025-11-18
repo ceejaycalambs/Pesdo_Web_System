@@ -46,15 +46,20 @@ const Login = () => {
       console.log('User type from userData:', userData?.userType);
       
       // Redirect based on userData.userType (determined from database profile)
+      // Use replace: true to prevent back button from returning to login page
       if (userData?.userType === 'employer') {
         console.log('Redirecting to employer dashboard');
-        navigate('/employer');
+        navigate('/employer', { replace: true });
+      } else if (userData?.userType === 'admin' || userData?.userType === 'super_admin') {
+        console.log('Redirecting to admin dashboard');
+        const host = typeof window !== 'undefined' ? window.location.hostname : '';
+        navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard', { replace: true });
       } else {
         console.log('Redirecting to jobseeker dashboard');
-        navigate('/jobseeker'); // Default to jobseeker
+        navigate('/jobseeker', { replace: true }); // Default to jobseeker
       }
     }
-  }, [currentUser, userData, authLoading, profileLoaded, navigate, auth]);
+  }, [currentUser, userData, authLoading, profileLoaded, navigate, auth, userType]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

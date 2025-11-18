@@ -213,17 +213,21 @@ export function AuthProvider({ children }) {
       }
       
       // Check admin by id with timeout protection
+      // If we have a strong hint (admin/super_admin), we can be more aggressive with timeouts
       console.log('ℹ️ No employer profile found, checking admin...');
       console.log('🔍 Querying admin_profiles for ID:', userId);
       
+      // Use optimized query with only essential columns to reduce RLS overhead
       const adminQueryPromise = supabase
         .from('admin_profiles')
-        .select('*')
+        .select('id, email, role, first_name, last_name, created_at, updated_at')
         .eq('id', userId)
         .maybeSingle();
       
+      // Shorter timeout if we have a strong hint, longer if not
+      const adminTimeout = (hint === 'admin' || hint === 'super_admin') ? 10000 : 15000;
       const adminTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout after 20 seconds')), 20000)
+        setTimeout(() => reject(new Error(`Query timeout after ${adminTimeout/1000} seconds`)), adminTimeout)
       );
       
       let ap, apErr;
@@ -233,9 +237,42 @@ export function AuthProvider({ children }) {
         apErr = result.error;
       } catch (err) {
         if (err.message?.includes('timeout')) {
-          console.error('⏱️ Admin query timed out after 20 seconds');
-          apErr = new Error('Query timeout - please check your connection');
-          ap = null;
+          console.error(`⏱️ Admin query timed out after ${adminTimeout/1000} seconds`);
+          
+          // If we have a strong hint, skip retry and use fallback immediately
+          if (hint === 'admin' || hint === 'super_admin') {
+            console.log('⚠️ Admin query timed out but we have a strong hint - using fallback');
+            apErr = new Error('Query timeout - using cached user type');
+            ap = null;
+          } else {
+            // Retry with minimal columns only
+            console.log('🔄 Retrying admin query with minimal columns...');
+            try {
+              const retryPromise = supabase
+                .from('admin_profiles')
+                .select('id, email, role')
+                .eq('id', userId)
+                .maybeSingle();
+              
+              const retryTimeout = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Retry timeout')), 8000)
+              );
+              
+              const retryResult = await Promise.race([retryPromise, retryTimeout]);
+              if (retryResult.data) {
+                console.log('✅ Admin retry successful with minimal columns');
+                ap = retryResult.data;
+                apErr = null;
+              } else {
+                apErr = retryResult.error || new Error('Query timeout - please check your connection');
+                ap = null;
+              }
+            } catch (retryErr) {
+              console.error('❌ Admin retry also failed:', retryErr);
+              apErr = new Error('Query timeout - please check your connection');
+              ap = null;
+            }
+          }
         } else {
           console.error('❌ Unexpected error in admin query:', err);
           apErr = err;
@@ -250,7 +287,7 @@ export function AuthProvider({ children }) {
         dataKeys: ap ? Object.keys(ap) : null
       });
 
-      if (apErr) {
+      if (apErr && !apErr.message?.includes('using cached')) {
         console.error('❌ Error fetching admin profile by ID:', apErr);
         console.error('Error details:', {
           message: apErr.message,
@@ -264,17 +301,17 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // Fallback: admin by email with timeout protection
-      if ((!ap || apErr) && email) {
+      // Fallback: admin by email with timeout protection (only if we don't have a strong hint or first query failed)
+      if ((!ap || apErr) && email && hint !== 'admin' && hint !== 'super_admin') {
         console.log('🔍 Trying admin profile by email:', email);
         const adminEmailQueryPromise = supabase
           .from('admin_profiles')
-          .select('*')
+          .select('id, email, role')
           .eq('email', email)
           .maybeSingle();
         
         const adminEmailTimeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Query timeout after 20 seconds')), 20000)
+          setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
         );
         
         try {
@@ -289,7 +326,7 @@ export function AuthProvider({ children }) {
           }
         } catch (err) {
           if (err.message?.includes('timeout')) {
-            console.error('⏱️ Admin email query timed out after 20 seconds');
+            console.error('⏱️ Admin email query timed out after 10 seconds');
             if (!apErr) apErr = new Error('Query timeout - please check your connection');
           } else {
             console.error('❌ Unexpected error in admin email query:', err);
@@ -298,18 +335,21 @@ export function AuthProvider({ children }) {
         }
       }
       
-      // If admin query timed out but we have a user ID, set basic profile to allow app to continue
-      if (apErr?.message?.includes('timeout') && !ap) {
-        console.warn('⚠️ Admin query timed out - setting basic profile to allow app to continue');
-        setUserData({
+      // If admin query timed out but we have a user ID and hint, set basic profile to allow app to continue
+      if (apErr && !ap && (hint === 'admin' || hint === 'super_admin' || apErr.message?.includes('timeout'))) {
+        const role = hint === 'super_admin' ? 'super_admin' : 'admin';
+        console.warn(`⚠️ Admin query timed out - setting basic ${role} profile to allow app to continue`);
+        const fallbackProfile = {
           id: userId,
           email: email,
-          userType: 'admin',
-          role: 'admin'
-        });
+          userType: role,
+          role: role
+        };
+        setUserData(fallbackProfile);
         setProfileLoaded(true);
-        console.log('✅ Basic admin profile set (timeout fallback)');
-        return true;
+        localStorage.setItem(`userType_${userId}`, role);
+        console.log(`✅ Basic ${role} profile set (timeout fallback)`);
+        return { success: true, profile: fallbackProfile, userType: role, role };
       }
 
       if (ap) {
@@ -330,21 +370,6 @@ export function AuthProvider({ children }) {
         // Return the correct userType based on role
         const userTypeForLog = role === 'super_admin' ? 'super_admin' : 'admin';
         return { success: true, profile: profileData, userType: userTypeForLog, role };
-      }
-      
-      // If admin query timed out but we have a user ID, set basic profile to allow app to continue
-      if (apErr?.message?.includes('timeout') && !ap) {
-        console.warn('⚠️ Admin query timed out - setting basic profile to allow app to continue');
-        const fallbackProfile = {
-          id: userId,
-          email: email,
-          userType: 'admin',
-          role: 'admin'
-        };
-        setUserData(fallbackProfile);
-        setProfileLoaded(true);
-        console.log('✅ Basic admin profile set (timeout fallback)');
-        return { success: true, profile: fallbackProfile, userType: 'admin', role: 'admin' };
       }
 
       // Default - no profile found, assume jobseeker

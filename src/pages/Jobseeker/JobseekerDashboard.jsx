@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../supabase.js';
 import NotificationButton from '../../components/NotificationButton';
 import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { logActivity } from '../../utils/activityLogger';
 import { sendNewApplicationSMS } from '../../services/smsService';
 import './JobseekerDashboard.css';
@@ -302,6 +303,43 @@ const JobseekerDashboard = () => {
     if (!profileLoaded || !jobseekerId) return;
     fetchDashboardData();
   }, [jobseekerId, profileLoaded]);
+
+  // Set up real-time data synchronization
+  useRealtimeData(
+    jobseekerId,
+    'jobseeker',
+    {
+      onJobsUpdate: (payload) => {
+        console.log('🔄 Real-time job update received, refreshing jobs...');
+        // Only refresh if job is approved (visible to jobseekers)
+        if (payload.new?.status === 'approved') {
+          fetchDashboardData();
+        }
+      },
+      onNewJob: (job) => {
+        console.log('🆕 New job available, refreshing jobs...', job);
+        // Only refresh if job is approved
+        if (job.status === 'approved') {
+          fetchDashboardData();
+        }
+      },
+      onApplicationsUpdate: (payload) => {
+        console.log('🔄 Real-time application update received, refreshing data...');
+        // Refresh when application status changes
+        fetchDashboardData();
+      },
+      onApplicationStatusChange: (application, oldStatus, newStatus) => {
+        console.log(`📊 Application status changed: ${oldStatus} → ${newStatus}`, application);
+        // Refresh when application status changes
+        fetchDashboardData();
+      },
+      onNewApplication: (application) => {
+        console.log('🆕 Application created, refreshing data...', application);
+        // Refresh when new application is created
+        fetchDashboardData();
+      }
+    }
+  );
 
   useEffect(() => {
     if (!showJobModal) return;
@@ -654,6 +692,38 @@ const JobseekerDashboard = () => {
       setLoading(false);
     }
   };
+
+  // Handle notification click - navigate to relevant section
+  const handleNotificationClick = useCallback((notification) => {
+    const notificationData = notification?.data;
+    if (!notificationData) return;
+
+    // For jobseekers, notifications are about applications
+    if (notificationData.job_id) {
+      // Switch to applied tab to see applications
+      setActiveTab('applied');
+      
+      // Find the job in the jobs list
+      const job = jobs.find(j => j.id === notificationData.job_id);
+      if (job) {
+        // Set selected job and show modal
+        setSelectedJob(job);
+        setShowJobModal(true);
+      } else {
+        // If job not found, fetch it
+        fetchDashboardData().then(() => {
+          // Try again after fetching
+          setTimeout(() => {
+            const updatedJob = jobs.find(j => j.id === notificationData.job_id);
+            if (updatedJob) {
+              setSelectedJob(updatedJob);
+              setShowJobModal(true);
+            }
+          }, 500);
+        });
+      }
+    }
+  }, [jobs, fetchDashboardData]);
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
@@ -2210,6 +2280,7 @@ const JobseekerDashboard = () => {
                 unreadCount={jobseekerUnreadCount}
                 onMarkAsRead={markJobseekerNotificationAsRead}
                 onMarkAllAsRead={markAllJobseekerNotificationsAsRead}
+                onNotificationClick={handleNotificationClick}
               />
             </div>
           </div>
@@ -2278,12 +2349,22 @@ const JobseekerDashboard = () => {
                   </span>
                 )}
               </div>
-              <div>
-                <h3 id="job-modal-title">{selectedJob.title}</h3>
-                <p className="job-modal-subtitle">
-                  {selectedJob.company}
-                </p>
+              <div className="job-modal-header-content">
+                <div>
+                  <h3 id="job-modal-title">{selectedJob.title}</h3>
+                  <p className="job-modal-subtitle">
+                    {selectedJob.company}
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                className="job-modal-close-btn"
+                onClick={handleCloseJobModal}
+                aria-label="Close job details"
+              >
+                ✕
+              </button>
             </header>
             <div className="job-modal-body">
               <div className="job-modal-grid">

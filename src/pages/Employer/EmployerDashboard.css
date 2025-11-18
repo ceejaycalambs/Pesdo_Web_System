@@ -282,6 +282,11 @@
 .user-name {
   font-size: 1rem;
   font-weight: 600;
+  color: #ffffff;
+}
+
+.employer-dashboard .user-name {
+  color: #ffffff !important;
 }
 
 .user-email {
@@ -1313,7 +1318,7 @@ input[type="date"]::-ms-expand {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     overflow: visible !important;
     min-height: 0;
     flex-shrink: 1;
@@ -1326,25 +1331,26 @@ input[type="date"]::-ms-expand {
 
   .employer-dashboard .nav-item {
     width: 100%;
+    flex: 1 1 0%;
     justify-content: flex-start;
-    padding: 5px 6px;
-    font-size: 11px;
+    padding: 10px 12px;
+    font-size: 12px;
     white-space: nowrap;
-    flex-shrink: 0;
-    min-height: 32px;
-    max-height: 36px;
+    flex-shrink: 1;
+    min-height: 44px;
     display: flex !important;
     align-items: center;
-    gap: 5px;
-    border-radius: 5px;
+    gap: 8px;
+    border-radius: 8px;
     font-weight: 500;
-    line-height: 1.1;
+    line-height: 1.2;
     cursor: pointer !important;
     pointer-events: auto !important;
     position: relative;
     z-index: 1;
     visibility: visible !important;
     opacity: 1 !important;
+    box-sizing: border-box;
   }
 
   .employer-dashboard .nav-icon {
@@ -1380,15 +1386,20 @@ input[type="date"]::-ms-expand {
   }
 
   .employer-dashboard .sidebar-footer {
-    padding-top: 4px;
-    max-height: 50px;
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    width: 100%;
+    flex-shrink: 0;
   }
 
   .employer-dashboard .sidebar-footer .outline-btn {
-    padding: 5px 8px;
-    font-size: 11px;
-    min-height: 32px;
-    max-height: 36px;
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 12px;
+    min-height: 44px;
+    border-radius: 8px;
   }
 
   .employer-dashboard .js-main {
@@ -1864,16 +1875,30 @@ input[type="date"]::-ms-expand {
 
 .modal-close-btn {
   border: none;
-  background: transparent;
+  background: rgba(148, 163, 184, 0.2);
   font-size: 1.6rem;
   line-height: 1;
   color: #475569;
   cursor: pointer;
-  padding: 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .modal-close-btn:hover {
+  background: rgba(148, 163, 184, 0.35);
   color: #1e293b;
+  transform: scale(1.05);
+}
+
+.modal-close-btn:active {
+  transform: scale(0.95);
 }
 
 .employer-modal-body {

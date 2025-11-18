@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import './AdminLanding.css';
@@ -12,7 +12,18 @@ const AdminLanding = () => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, currentUser, userData, loading: authLoading, profileLoaded } = useAuth();
+
+  // Redirect authenticated admins away from login page
+  useEffect(() => {
+    if (currentUser && !authLoading && profileLoaded) {
+      const userType = userData?.userType;
+      if (userType === 'admin' || userType === 'super_admin') {
+        const host = typeof window !== 'undefined' ? window.location.hostname : '';
+        navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard', { replace: true });
+      }
+    }
+  }, [currentUser, userData, authLoading, profileLoaded, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,8 +40,9 @@ const AdminLanding = () => {
       localStorage.setItem('admin_email', email);
       
       // Navigate to admin dashboard (host-based: admin subdomain uses '/dashboard')
+      // Use replace: true to prevent back button from returning to login page
       const host = typeof window !== 'undefined' ? window.location.hostname : '';
-      navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
+      navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard', { replace: true });
     } catch (err) {
       console.error('Admin login error:', err);
       setError(err.message || 'Invalid admin credentials. Please check your email and password.');

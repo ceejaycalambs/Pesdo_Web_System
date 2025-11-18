@@ -13,7 +13,18 @@ const JobseekerLogin = () => {
   const navigate = useNavigate();
   const auth = useAuth();
 
-  const { login } = auth || {};
+  const { login, currentUser, userData, loading: authLoading, profileLoaded } = auth || {};
+
+  // Redirect authenticated users away from login page
+  useEffect(() => {
+    if (currentUser && !authLoading && profileLoaded) {
+      if (userData?.userType === 'jobseeker') {
+        navigate('/jobseeker', { replace: true });
+      } else if (userData?.userType === 'employer') {
+        navigate('/employer', { replace: true });
+      }
+    }
+  }, [currentUser, userData, authLoading, profileLoaded, navigate]);
 
   // Clear form fields when component mounts
   useEffect(() => {
@@ -46,7 +57,8 @@ const JobseekerLogin = () => {
       setEmail('');
       setPassword('');
       setLoading(false);
-      navigate('/jobseeker');
+      // Use replace: true to prevent back button from returning to login page
+      navigate('/jobseeker', { replace: true });
     } catch (err) {
       console.error('Login error:', err);
       let errorMessage = 'Failed to login. Please try again.';

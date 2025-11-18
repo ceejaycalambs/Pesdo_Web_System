@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import NotificationButton from '../../components/NotificationButton';
 import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../supabase.js';
 import { logActivity } from '../../utils/activityLogger';
@@ -380,6 +381,78 @@ const EmployerDashboard = () => {
     fetchJobs();
   }, [employerId]);
 
+  // Set up real-time data synchronization
+  useRealtimeData(
+    employerId,
+    'employer',
+    {
+      onJobsUpdate: (payload) => {
+        console.log('🔄 Real-time job update received, refreshing jobs...');
+        // Refresh jobs when any job is updated
+        fetchJobs();
+      },
+      onJobStatusChange: (job, oldStatus, newStatus) => {
+        console.log(`📊 Job status changed: ${oldStatus} → ${newStatus}`, job);
+        // Refresh jobs when status changes
+        fetchJobs();
+      },
+      onNewJob: (job) => {
+        console.log('🆕 New job created, refreshing jobs...', job);
+        // Refresh jobs when a new job is created
+        fetchJobs();
+      },
+      onApplicationsUpdate: async (payload) => {
+        // Check if this application is for one of the employer's jobs
+        const jobId = payload.new?.job_id;
+        if (jobId) {
+          // Verify this job belongs to the employer
+          const { data: job } = await supabase
+            .from('jobs')
+            .select('employer_id')
+            .eq('id', jobId)
+            .single();
+          
+          if (job && job.employer_id === employerId) {
+            console.log('🔄 Real-time application update received, refreshing jobs...');
+            fetchJobs();
+          }
+        }
+      },
+      onApplicationStatusChange: async (application, oldStatus, newStatus) => {
+        // Check if this application is for one of the employer's jobs
+        const jobId = application?.job_id;
+        if (jobId) {
+          const { data: job } = await supabase
+            .from('jobs')
+            .select('employer_id')
+            .eq('id', jobId)
+            .single();
+          
+          if (job && job.employer_id === employerId) {
+            console.log(`📊 Application status changed: ${oldStatus} → ${newStatus}`, application);
+            fetchJobs();
+          }
+        }
+      },
+      onNewApplication: async (application) => {
+        // Check if this application is for one of the employer's jobs
+        const jobId = application?.job_id;
+        if (jobId) {
+          const { data: job } = await supabase
+            .from('jobs')
+            .select('employer_id')
+            .eq('id', jobId)
+            .single();
+          
+          if (job && job.employer_id === employerId) {
+            console.log('🆕 New application received, refreshing jobs...', application);
+            fetchJobs();
+          }
+        }
+      }
+    }
+  );
+
   useEffect(() => {
     if (!jobDetailsOpen) return undefined;
 
@@ -567,6 +640,87 @@ const EmployerDashboard = () => {
       setJobsLoading(false);
     }
   };
+
+  // Handle notification click - navigate to relevant section
+  const handleNotificationClick = useCallback((notification) => {
+    const notificationData = notification?.data;
+    if (!notificationData) return;
+
+    // Switch to manage tab to see jobs/applications
+    setActiveTab('manage');
+
+    // Check if this is a job status notification or application notification
+    if (notificationData.job_id) {
+      // Find the job in the jobs list
+      const allJobs = [...pendingJobs, ...approvedJobs, ...rejectedJobs];
+      const job = allJobs.find(j => j.id === notificationData.job_id);
+      
+      if (job) {
+        // Determine job status
+        const status = (job.status || '').toLowerCase();
+        let statusClass = 'pending';
+        if (status === 'approved' || status === 'active') {
+          statusClass = 'approved';
+        } else if (status === 'rejected') {
+          statusClass = 'rejected';
+        }
+        
+        // Set the appropriate tab and open job details
+        const targetTab = statusClass === 'approved' ? 'approved' : statusClass === 'rejected' ? 'rejected' : 'pending';
+        setJobStatusTab(targetTab);
+        
+        // Open job details
+        setSelectedJob(job);
+        setSelectedJobStatus(statusClass);
+        setSelectedApplication(null);
+        setSelectedApplicationProfile(null);
+        setLoadingApplicationProfile(false);
+        setIsApplicationModalOpen(false);
+        setJobDetailsOpen(true);
+        
+        // Refresh applications when opening job details
+        if (job?.id) {
+          fetchJobs();
+        }
+      } else {
+        // If job not found, refresh and try again
+        fetchJobs().then(() => {
+          setTimeout(() => {
+            const updatedAllJobs = [...pendingJobs, ...approvedJobs, ...rejectedJobs];
+            const updatedJob = updatedAllJobs.find(j => j.id === notificationData.job_id);
+            if (updatedJob) {
+              const status = (updatedJob.status || '').toLowerCase();
+              let statusClass = 'pending';
+              if (status === 'approved' || status === 'active') {
+                statusClass = 'approved';
+              } else if (status === 'rejected') {
+                statusClass = 'rejected';
+              }
+              const targetTab = statusClass === 'approved' ? 'approved' : statusClass === 'rejected' ? 'rejected' : 'pending';
+              setJobStatusTab(targetTab);
+              
+              // Open job details
+              setSelectedJob(updatedJob);
+              setSelectedJobStatus(statusClass);
+              setSelectedApplication(null);
+              setSelectedApplicationProfile(null);
+              setLoadingApplicationProfile(false);
+              setIsApplicationModalOpen(false);
+              setJobDetailsOpen(true);
+              
+              if (updatedJob?.id) {
+                fetchJobs();
+              }
+            }
+          }, 500);
+        });
+      }
+    } else if (notificationData.id && notification.source === 'notification') {
+      // This is a direct notification (e.g., verification status)
+      // Just switch to manage tab - the user can see their jobs
+      setJobStatusTab('pending');
+    }
+  }, [pendingJobs, approvedJobs, rejectedJobs, fetchJobs]);
 
   const profileDisplayName = useMemo(() => profile?.business_name || 'Company Profile', [profile]);
 
@@ -2461,6 +2615,7 @@ const EmployerDashboard = () => {
                 unreadCount={employerUnreadCount}
                 onMarkAsRead={markEmployerNotificationAsRead}
                 onMarkAllAsRead={markAllEmployerNotificationsAsRead}
+                onNotificationClick={handleNotificationClick}
               />
             </div>
           </div>

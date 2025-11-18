@@ -5,6 +5,7 @@ import Pesdo_Office from '../assets/Pesdo_Office.png';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
 const LandingPage = () => {
     const navigate = useNavigate();
@@ -239,6 +240,93 @@ const LandingPage = () => {
         
         fetchStats();
     }, []);
+
+    // Set up real-time data synchronization for landing page statistics
+    useRealtimeData(
+        null, // No specific user for public landing page
+        'public', // Special type for public pages
+        {
+            onJobsUpdate: (payload) => {
+                console.log('🔄 Real-time job update on landing page, refreshing stats...');
+                // Refresh stats when jobs are updated (especially status changes)
+                if (payload.new?.status === 'approved' || payload.old?.status !== payload.new?.status) {
+                    // Refetch stats
+                    const fetchStats = async () => {
+                        try {
+                            // Try using RPC function first
+                            const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_stats');
+                            
+                            if (!rpcError && rpcData) {
+                                setStats({
+                                    jobseekers: rpcData.jobseekers || 0,
+                                    employers: rpcData.employers || 0,
+                                    vacancies: rpcData.vacancies || 0,
+                                    referrals: rpcData.referrals || 0,
+                                    placements: rpcData.placements || 0
+                                });
+                                return;
+                            }
+                            
+                            // Fallback: Direct queries
+                            const [jobseekerRes, employerRes, jobsRes, applicationsRes] = await Promise.all([
+                                supabase.from('jobseeker_profiles').select('id'),
+                                supabase.from('employer_profiles').select('id'),
+                                supabase.from('jobs').select('id, employer_id, employer_profiles(id)').eq('status', 'approved'),
+                                supabase.from('applications').select('id, status')
+                            ]);
+                            
+                            const validJobs = (jobsRes.data || []).filter(job => 
+                                job.employer_id && job.employer_profiles
+                            );
+                            
+                            const referralsCount = (applicationsRes.data || []).filter(app => 
+                                (app.status || '').toLowerCase() === 'referred'
+                            ).length;
+                            
+                            const placementsCount = (applicationsRes.data || []).filter(app => {
+                                const status = (app.status || '').toLowerCase();
+                                return ['accepted', 'hired', 'placed'].includes(status);
+                            }).length;
+                            
+                            setStats({
+                                jobseekers: jobseekerRes.data?.length || 0,
+                                employers: employerRes.data?.length || 0,
+                                vacancies: validJobs.length || 0,
+                                referrals: referralsCount,
+                                placements: placementsCount
+                            });
+                        } catch (error) {
+                            console.error('Error refreshing stats:', error);
+                        }
+                    };
+                    fetchStats();
+                }
+            },
+            onNewJob: (job) => {
+                console.log('🆕 New job approved on landing page, refreshing stats...', job);
+                if (job.status === 'approved') {
+                    // Refetch stats
+                    const fetchStats = async () => {
+                        try {
+                            const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_stats');
+                            if (!rpcError && rpcData) {
+                                setStats({
+                                    jobseekers: rpcData.jobseekers || 0,
+                                    employers: rpcData.employers || 0,
+                                    vacancies: rpcData.vacancies || 0,
+                                    referrals: rpcData.referrals || 0,
+                                    placements: rpcData.placements || 0
+                                });
+                            }
+                        } catch (error) {
+                            console.error('Error refreshing stats:', error);
+                        }
+                    };
+                    fetchStats();
+                }
+            }
+        }
+    );
 
     // Fetch employers - MUST be before any early returns
     useEffect(() => {

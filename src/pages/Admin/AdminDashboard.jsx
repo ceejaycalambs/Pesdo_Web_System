@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { supabase } from '../../supabase.js';
 import './AdminDashboard.css';
 
@@ -34,6 +35,35 @@ const AdminDashboard = () => {
       fetchDashboardData();
     }
   }, [adminEmail, authUser, adminRole]);
+
+  // Set up real-time data synchronization
+  useRealtimeData(
+    authUser?.id,
+    adminRole || 'admin',
+    {
+      onJobsUpdate: (payload) => {
+        console.log('🔄 Real-time job update received, refreshing dashboard...');
+        // Refresh dashboard stats when jobs are updated
+        if (adminEmail && authUser && adminRole) {
+          fetchDashboardData();
+        }
+      },
+      onJobStatusChange: (job, oldStatus, newStatus) => {
+        console.log(`📊 Job status changed: ${oldStatus} → ${newStatus}`, job);
+        // Refresh dashboard when job status changes
+        if (adminEmail && authUser && adminRole) {
+          fetchDashboardData();
+        }
+      },
+      onNewJob: (job) => {
+        console.log('🆕 New job pending approval, refreshing dashboard...', job);
+        // Refresh dashboard when new job is created
+        if (adminEmail && authUser && adminRole) {
+          fetchDashboardData();
+        }
+      }
+    }
+  );
 
   // Prevent trackpad gesture scrolling
   useEffect(() => {
