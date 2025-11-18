@@ -25,10 +25,10 @@ const Register = () => {
   useEffect(() => {
     console.log('Auth state changed in Register:', { currentUser: !!currentUser, loading, hasSuccess: !!success });
     
-    // If user gets auto-logged in during registration, show success message and logout
+      // If user gets auto-logged in during registration, show success message and logout
     if (currentUser && loading && !success) {
       console.log('User auto-logged in during registration, showing success message and logging out for testing');
-      setSuccess(`Your ${formData.userType === 'employer' ? 'employer' : 'jobseeker'} account has been created. Please check your email and click the confirmation link to activate your account before logging in.`);
+      setSuccess(`Registration successful. Please check your email to confirm your account.`);
       setLoading(false);
       
       // Clear the form
@@ -148,7 +148,7 @@ const Register = () => {
       console.log('Register function completed:', result);
       
       // Show success message and stay on register page
-      setSuccess(`Your ${formData.userType === 'employer' ? 'employer' : 'jobseeker'} account has been created. Please confirm your email via the link we sent to activate your account. You will not be able to log in until your email is confirmed.`);
+      setSuccess(`Registration successful. Please check your email to confirm your account.`);
       setLoading(false);
       
       // Clear the form for next registration
@@ -168,7 +168,7 @@ const Register = () => {
         // If we're still loading and no success message is shown, show it now
         if (loading && !success) {
           console.log('Fallback: Showing success message');
-          setSuccess(`Your ${formData.userType === 'employer' ? 'employer' : 'jobseeker'} account has been created. Please confirm your email via the link we sent to activate your account. You will not be able to log in until your email is confirmed.`);
+          setSuccess(`Registration successful. Please check your email to confirm your account.`);
           setLoading(false);
           
           // Clear the form
@@ -466,10 +466,7 @@ const Register = () => {
           )}
           {success && (
             <div className="success-message">
-              <div className="success-icon">✅</div>
-              <div className="success-text">
-                {success}
-              </div>
+              <p className="success-text">{success}</p>
             </div>
           )}
 
