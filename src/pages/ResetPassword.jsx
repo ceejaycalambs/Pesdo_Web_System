@@ -23,39 +23,72 @@ const ResetPassword = () => {
     // Check if we have a valid session from the password reset link
     const checkSession = async () => {
       try {
+        console.log('🔐 Checking password reset session...');
+        console.log('🔐 Current URL:', window.location.href);
+        console.log('🔐 Hash:', window.location.hash);
+        console.log('🔐 Query params:', window.location.search);
+
         // First, check if there are hash fragments in the URL (from password reset link)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
-        const type = hashParams.get('type');
+        const hashType = hashParams.get('type'); // This will be 'recovery' from Supabase
         const error = hashParams.get('error');
         const errorDescription = hashParams.get('error_description');
 
+        console.log('🔐 Hash params:', {
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
+          hashType,
+          error,
+          errorDescription
+        });
+
         // Handle errors from hash fragments
         if (error) {
-          console.error('Password reset error from URL:', error, errorDescription);
+          console.error('❌ Password reset error from URL:', error, errorDescription);
           setError(errorDescription || 'Invalid or expired reset link. Please request a new password reset.');
           setVerifying(false);
           return;
         }
 
         // If we have tokens in the hash, set the session
-        if (type === 'recovery' && accessToken) {
+        if (hashType === 'recovery' && accessToken) {
           console.log('🔐 Processing password reset link from URL hash...');
+          console.log('🔐 Setting session with access token...');
+          
           const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken || '',
           });
           
           if (sessionError) {
-            console.error('Error setting session from hash:', sessionError);
-            setError('Invalid or expired reset link. Please request a new password reset.');
+            console.error('❌ Error setting session from hash:', sessionError);
+            console.error('❌ Session error details:', {
+              message: sessionError.message,
+              status: sessionError.status,
+              name: sessionError.name
+            });
+            setError(sessionError.message || 'Invalid or expired reset link. Please request a new password reset.');
             setVerifying(false);
             return;
           }
 
-          // Clear the hash from URL after processing
-          window.history.replaceState(null, '', window.location.pathname);
+          // Verify session was set correctly
+          const { data: { session: verifySession }, error: verifyError } = await supabase.auth.getSession();
+          if (verifyError || !verifySession) {
+            console.error('❌ Session verification failed after setting:', verifyError);
+            setError('Failed to verify session. Please try again.');
+            setVerifying(false);
+            return;
+          }
+
+          console.log('✅ Session set successfully from hash');
+          console.log('✅ User ID:', verifySession.user?.id);
+
+          // Clear the hash from URL after processing, but preserve query params
+          const newUrl = window.location.pathname + window.location.search;
+          window.history.replaceState(null, '', newUrl);
           setVerifying(false);
           return;
         }
@@ -69,7 +102,7 @@ const ResetPassword = () => {
           });
           
           if (sessionError) {
-            console.error('Error setting session from state:', sessionError);
+            console.error('❌ Error setting session from state:', sessionError);
             setError('Invalid or expired reset link. Please request a new password reset.');
             setVerifying(false);
             return;
@@ -78,13 +111,27 @@ const ResetPassword = () => {
           return;
         }
 
-        // Wait a moment for Supabase's automatic session detection to process hash fragments
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Wait longer for Supabase's automatic session detection to process hash fragments
+        // Supabase client might process the hash automatically
+        console.log('🔐 Waiting for Supabase automatic session processing...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Check if we already have a valid session (from Supabase's automatic processing or previous manual processing)
         const { data: { session }, error: sessionCheckError } = await supabase.auth.getSession();
+        
+        console.log('🔐 Session check result:', {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          error: sessionCheckError?.message
+        });
+
         if (sessionCheckError || !session) {
-          console.error('No valid session found:', sessionCheckError);
+          console.error('❌ No valid session found:', sessionCheckError);
+          console.error('❌ This might mean:');
+          console.error('   - The reset link has expired');
+          console.error('   - The reset link was already used');
+          console.error('   - The reset link is invalid');
+          console.error('   - The hash fragments were not processed correctly');
           setError('Invalid or expired reset link. Please request a new password reset.');
           setVerifying(false);
           return;
@@ -92,9 +139,10 @@ const ResetPassword = () => {
 
         // Session is valid, allow password reset
         console.log('✅ Valid session found for password reset');
+        console.log('✅ User:', session.user?.email);
         setVerifying(false);
       } catch (err) {
-        console.error('Error checking session:', err);
+        console.error('❌ Error checking session:', err);
         setError('Failed to verify reset link. Please try again.');
         setVerifying(false);
       }

@@ -27,11 +27,18 @@ const ForgotPassword = () => {
     }
 
     try {
+      // Normalize the origin (remove www. if present for consistency)
+      let origin = window.location.origin;
+      // Remove www. prefix to ensure consistency with Supabase redirect URLs
+      origin = origin.replace(/^https?:\/\/www\./, (match) => match.replace('www.', ''));
+      
       // Get the redirect URL based on user type (include user type in query params)
-      const redirectUrl = `${window.location.origin}/reset-password?type=${userType}`;
+      const redirectUrl = `${origin}/reset-password?type=${userType}`;
       
       console.log('🔐 Password reset request for:', email);
       console.log('🔐 User type:', userType);
+      console.log('🔐 Original origin:', window.location.origin);
+      console.log('🔐 Normalized origin:', origin);
       console.log('🔐 Redirect URL:', redirectUrl);
       
       const { data, error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
