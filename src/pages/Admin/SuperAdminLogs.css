@@ -26,6 +26,55 @@
   align-items: center;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+/* Notification Button - Match Jobseeker/Employer Design */
+.logs-header .header-right .notification-button {
+  padding: 10px;
+  min-width: 40px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  position: relative;
+  overflow: visible;
+  color: transparent;
+  font-size: 0;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #0b3a53 0%, #0f5a7a 100%);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 10px rgba(6, 34, 51, 0.25);
+}
+
+.logs-header .header-right .notification-button::after {
+  content: '🔔';
+  font-size: 1.2rem;
+  line-height: 1;
+  display: block;
+  color: white;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.logs-header .header-right .notification-button .notification-badge {
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  font-size: 0.65rem;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
 .header-left h1 {
   margin: 0;
   font-size: 1.8rem;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase';
 import Logo_pesdo from '../assets/Logo_pesdo.png';
 import '../Login/Login.css';
@@ -8,6 +8,8 @@ import './ResetPassword.css';
 const ResetPassword = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const userType = searchParams.get('type') || 'jobseeker'; // Get user type from URL params
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -150,9 +152,9 @@ const ResetPassword = () => {
 
       setSuccess(true);
       
-      // Redirect to login after 3 seconds
+      // Redirect to login after 3 seconds (use correct user type)
       setTimeout(() => {
-        navigate('/login/jobseeker');
+        navigate(`/login/${userType}`);
       }, 3000);
     } catch (err) {
       console.error('Password reset error:', err);
@@ -220,7 +222,7 @@ const ResetPassword = () => {
         </div>
         <nav aria-label="Primary navigation">
           <Link className="btn" to="/">Home</Link>
-          <Link className="btn btn-outline" to="/login/jobseeker">Back to Login</Link>
+          <Link className="btn btn-outline" to={`/login/${userType}`}>Back to Login</Link>
         </nav>
       </header>
 
@@ -229,6 +231,10 @@ const ResetPassword = () => {
           <div className="login-header">
             <h1>Reset Password</h1>
             <p>Enter your new password</p>
+            <div className={`login-type-badge ${userType}`}>
+              <span className="badge-icon">{userType === 'employer' ? '🏢' : '👤'}</span>
+              <span className="badge-text">{userType === 'employer' ? 'Employer Portal' : 'Jobseeker Portal'}</span>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
@@ -334,7 +340,7 @@ const ResetPassword = () => {
           <div className="login-footer">
             <p>
               Remember your password?{' '}
-              <Link to="/login/jobseeker" className="register-link">
+              <Link to={`/login/${userType}`} className="register-link">
                 Back to Login
               </Link>
             </p>

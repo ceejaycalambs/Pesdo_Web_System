@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../supabase.js';
 import { logActivity } from '../../utils/activityLogger';
 import { sendApplicationStatusSMS } from '../../services/smsService';
+import { sendApplicationStatusEmail, sendNewJobSubmissionEmail } from '../../services/emailService';
 import './EmployerDashboard.css';
 
 const NAV_ITEMS = [
@@ -1089,22 +1090,46 @@ const EmployerDashboard = () => {
           .eq('id', jobData?.employer_id || profile?.id)
           .single();
 
-        if (jobseekerProfile?.phone && jobData) {
+        if (jobseekerProfile && jobData) {
           const jobseekerName = `${jobseekerProfile.first_name || ''} ${jobseekerProfile.last_name || ''}`.trim() || 'Jobseeker';
           const companyName = employerProfile?.business_name || profile?.business_name || 'Company';
-          
-          await sendApplicationStatusSMS(
-            jobseekerProfile.phone,
-            jobseekerName,
-            jobData.position_title || 'Job Vacancy',
-            nextStatus,
-            companyName
-          );
-          console.log('✅ SMS notification sent to jobseeker');
+          const jobTitle = jobData.position_title || 'Job Vacancy';
+
+          // Send SMS if phone number is available
+          if (jobseekerProfile.phone) {
+            try {
+              await sendApplicationStatusSMS(
+                jobseekerProfile.phone,
+                jobseekerName,
+                jobTitle,
+                nextStatus,
+                companyName
+              );
+              console.log('✅ SMS notification sent to jobseeker');
+            } catch (smsError) {
+              console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+            }
+          }
+
+          // Send Email if email is available
+          if (jobseekerProfile.email) {
+            try {
+              await sendApplicationStatusEmail(
+                jobseekerProfile.email,
+                jobseekerName,
+                jobTitle,
+                nextStatus,
+                companyName
+              );
+              console.log('✅ Email notification sent to jobseeker');
+            } catch (emailError) {
+              console.error('⚠️ Failed to send email notification (non-critical):', emailError);
+            }
+          }
         }
-      } catch (smsError) {
-        // SMS failure should not block the main action
-        console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+      } catch (notificationError) {
+        // Notification failures should not block the main action
+        console.error('⚠️ Failed to send notifications (non-critical):', notificationError);
       }
 
       setJobApplications((prev) => {
@@ -1194,6 +1219,51 @@ const EmployerDashboard = () => {
         .insert([payload]);
 
       if (error) throw error;
+
+      // Notify admins via email (non-blocking)
+      // Use RPC function to bypass RLS and get admin emails
+      try {
+        const { data: adminData, error: adminError } = await supabase
+          .rpc('get_admin_emails_for_notifications');
+
+        if (!adminError && adminData && adminData.length > 0) {
+          const employerName = profile?.contact_person_name || 'Employer';
+          const companyName = profile?.business_name || null;
+          const jobTitle = jobForm.position_title;
+
+          // Send email notifications to all admins in parallel (non-blocking)
+          const emailPromises = adminData.map(async (admin) => {
+            const adminName = admin.first_name && admin.last_name
+              ? `${admin.first_name} ${admin.last_name}`
+              : admin.first_name || admin.last_name || 'Admin';
+
+            try {
+              await sendNewJobSubmissionEmail(
+                admin.email,
+                adminName,
+                jobTitle,
+                employerName,
+                companyName
+              );
+              console.log(`✅ Email notification sent to admin: ${admin.email}`);
+            } catch (emailError) {
+              console.error(`❌ Failed to send email to admin ${admin.email}:`, emailError);
+              // Don't throw - continue with other admins
+            }
+          });
+
+          // Execute all email sends in parallel (non-blocking)
+          Promise.all(emailPromises).catch((err) => {
+            console.error('Error sending admin notifications:', err);
+            // Don't block the main flow
+          });
+        } else if (adminError) {
+          console.error('Error fetching admin emails for notification:', adminError);
+        }
+      } catch (notificationError) {
+        console.error('Error in admin notification process:', notificationError);
+        // Don't block the main flow - job submission was successful
+      }
 
       setJobMessage({ type: 'success', text: 'Job vacancy submitted for review.' });
       setJobForm(defaultJobForm);

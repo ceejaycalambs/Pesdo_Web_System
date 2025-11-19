@@ -33,12 +33,15 @@ function ok(data: unknown) {
 const SENDER_EMAIL = 'no-reply@pesdosurigao.online';
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests - MUST return 200 status
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
+    return new Response('', {
+      status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Max-Age': '86400',
       },
     });
   }

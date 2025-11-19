@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../supabase.js';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
+import NotificationButton from '../../components/NotificationButton';
+import { useNavigate } from 'react-router-dom';
 import './UserManagement.css';
 
 const UserManagement = () => {
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('jobseekers');
   const [jobseekers, setJobseekers] = useState([]);
@@ -17,6 +23,22 @@ const UserManagement = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, userId: null, userType: null, userName: null });
   const [deleteStatus, setDeleteStatus] = useState({ show: false, type: 'success', message: '', details: '', showCancel: false, onConfirm: null, onCancel: null });
+
+  // Realtime notifications
+  const {
+    notifications: realtimeNotifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    requestNotificationPermission
+  } = useRealtimeNotifications(currentUser?.id, 'admin');
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (currentUser?.id) {
+      requestNotificationPermission();
+    }
+  }, [currentUser?.id, requestNotificationPermission]);
 
   useEffect(() => {
     // Check URL parameter for tab
@@ -364,6 +386,17 @@ const UserManagement = () => {
             <p>Manage jobseekers and employers</p>
           </div>
           <div className="header-right">
+            <NotificationButton
+              notifications={realtimeNotifications}
+              unreadCount={unreadCount}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onNotificationClick={(notification) => {
+                // Navigate to job management page when notification is clicked
+                const base = window.location.hostname.startsWith('admin.') ? '' : '/admin';
+                navigate(`${base}/jobs`);
+              }}
+            />
             <button onClick={() => window.history.back()} className="back-btn">
               ← Back to Dashboard
             </button>

@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabase.js';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
+import NotificationButton from '../../components/NotificationButton';
 import './AdminManagement.css';
 
 const AdminManagement = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [adminRole, setAdminRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [admins, setAdmins] = useState([]);
@@ -15,6 +19,22 @@ const AdminManagement = () => {
   const isAdminHost = host.startsWith('admin.');
   const loginPath = isAdminHost ? '/' : '/admin';
   const dashboardPath = isAdminHost ? '/dashboard' : '/admin/dashboard';
+
+  // Realtime notifications
+  const {
+    notifications: realtimeNotifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    requestNotificationPermission
+  } = useRealtimeNotifications(currentUser?.id, 'admin');
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (currentUser?.id) {
+      requestNotificationPermission();
+    }
+  }, [currentUser?.id, requestNotificationPermission]);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -310,6 +330,17 @@ const AdminManagement = () => {
             <p>Create and manage admin accounts</p>
           </div>
           <div className="header-right">
+            <NotificationButton
+              notifications={realtimeNotifications}
+              unreadCount={unreadCount}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onNotificationClick={(notification) => {
+                // Navigate to job management page when notification is clicked
+                const base = window.location.hostname.startsWith('admin.') ? '' : '/admin';
+                navigate(`${base}/jobs`);
+              }}
+            />
             <button
               onClick={() => navigate(dashboardPath)}
               className="back-btn"

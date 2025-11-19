@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
+import NotificationButton from '../../components/NotificationButton';
 import { supabase } from '../../supabase.js';
 import './AdminDashboard.css';
 
@@ -24,10 +26,26 @@ const AdminDashboard = () => {
   const [adminRole, setAdminRole] = useState(null); // 'admin' or 'super_admin'
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Realtime notifications
+  const {
+    notifications: realtimeNotifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    requestNotificationPermission
+  } = useRealtimeNotifications(authUser?.id, 'admin');
+
   useEffect(() => {
     checkAdminAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, userData]);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (authUser?.id) {
+      requestNotificationPermission();
+    }
+  }, [authUser?.id, requestNotificationPermission]);
 
   // Fetch dashboard data only when admin is authenticated AND role is known
   useEffect(() => {
@@ -520,6 +538,17 @@ const AdminDashboard = () => {
               </div>
             </div>
             <div className="header-right">
+              <NotificationButton
+                notifications={realtimeNotifications}
+                unreadCount={unreadCount}
+                onMarkAsRead={markAsRead}
+                onMarkAllAsRead={markAllAsRead}
+                onNotificationClick={(notification) => {
+                  // Navigate to job management page when notification is clicked
+                  const base = window.location.hostname.startsWith('admin.') ? '' : '/admin';
+                  navigate(`${base}/jobs`);
+                }}
+              />
             </div>
           </div>
         </header>

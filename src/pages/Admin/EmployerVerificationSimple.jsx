@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabase.js';
 import { logActivity } from '../../utils/activityLogger';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
+import NotificationButton from '../../components/NotificationButton';
 import { sendSMS } from '../../services/smsService';
+import { sendEmployerVerificationEmail } from '../../services/emailService';
 import './EmployerVerification.css';
 
 const EmployerVerificationSimple = () => {
@@ -26,6 +29,22 @@ const EmployerVerificationSimple = () => {
     approved: 0,
     rejected: 0
   });
+
+  // Realtime notifications
+  const {
+    notifications: realtimeNotifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    requestNotificationPermission
+  } = useRealtimeNotifications(currentUser?.id, 'admin');
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (currentUser?.id) {
+      requestNotificationPermission();
+    }
+  }, [currentUser?.id, requestNotificationPermission]);
 
   // Fetch employers directly from employer_profiles
   const fetchEmployers = async () => {
@@ -156,30 +175,52 @@ const EmployerVerificationSimple = () => {
         }
       }
 
-      // Send SMS notification to employer (non-blocking)
+      // Send SMS and Email notifications to employer (non-blocking)
       if (verificationStatus === 'approved' || verificationStatus === 'rejected') {
         try {
           const { data: employerProfile } = await supabase
             .from('employer_profiles')
-            .select('mobile_number, business_name, contact_person_name')
+            .select('mobile_number, email, contact_email, business_name, contact_person_name')
             .eq('id', selectedEmployer.id)
             .single();
 
-          if (employerProfile?.mobile_number) {
+          if (employerProfile) {
             const employerName = employerProfile.contact_person_name || employerProfile.business_name || 'Employer';
-            const message = verificationStatus === 'approved'
-              ? `Hi ${employerName}! Your employer account has been APPROVED. You can now post job vacancies. - PESDO`
-              : `Hi ${employerName}! Your verification was REJECTED. Check dashboard for details. - PESDO`;
+            const employerEmail = employerProfile.contact_email || employerProfile.email;
 
-            await sendSMS({
-              to: employerProfile.mobile_number,
-              message: message
-            });
-            console.log('✅ SMS notification sent to employer');
+            // Send SMS if mobile number is available
+            if (employerProfile.mobile_number) {
+              const message = verificationStatus === 'approved'
+                ? `Hi ${employerName}! Your employer account has been APPROVED. You can now post job vacancies. - PESDO`
+                : `Hi ${employerName}! Your verification was REJECTED. Check dashboard for details. - PESDO`;
+
+              sendSMS({
+                to: employerProfile.mobile_number,
+                message: message
+              }).then(() => {
+                console.log('✅ SMS notification sent to employer');
+              }).catch((smsError) => {
+                console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+              });
+            }
+
+            // Send Email if email is available
+            if (employerEmail) {
+              sendEmployerVerificationEmail(
+                employerEmail,
+                employerName,
+                verificationStatus,
+                verificationNotes || null
+              ).then(() => {
+                console.log('✅ Email notification sent to employer');
+              }).catch((emailError) => {
+                console.error('⚠️ Failed to send email notification (non-critical):', emailError);
+              });
+            }
           }
-        } catch (smsError) {
-          // SMS failure should not block the main action
-          console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+        } catch (error) {
+          // Notification failures should not block the main action
+          console.error('⚠️ Failed to send notifications (non-critical):', error);
         }
       }
 
@@ -336,15 +377,28 @@ const EmployerVerificationSimple = () => {
             <h1>🏢 Employer Verification</h1>
             <p>Review and verify employer documents before they can post job vacancies.</p>
           </div>
-          <button 
-            className="back-btn"
-            onClick={() => {
-              const host = typeof window !== 'undefined' ? window.location.hostname : '';
-              navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
-            }}
-          >
-            ← Back to Dashboard
-          </button>
+          <div className="header-right">
+            <NotificationButton
+              notifications={realtimeNotifications}
+              unreadCount={unreadCount}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onNotificationClick={(notification) => {
+                // Navigate to job management page when notification is clicked
+                const base = window.location.hostname.startsWith('admin.') ? '' : '/admin';
+                navigate(`${base}/jobs`);
+              }}
+            />
+            <button 
+              className="back-btn"
+              onClick={() => {
+                const host = typeof window !== 'undefined' ? window.location.hostname : '';
+                navigate(host.startsWith('admin.') ? '/dashboard' : '/admin/dashboard');
+              }}
+            >
+              ← Back to Dashboard
+            </button>
+          </div>
         </div>
       </div>
 

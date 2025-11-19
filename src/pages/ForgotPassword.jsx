@@ -27,10 +27,11 @@ const ForgotPassword = () => {
     }
 
     try {
-      // Get the redirect URL based on user type
-      const redirectUrl = `${window.location.origin}/reset-password`;
+      // Get the redirect URL based on user type (include user type in query params)
+      const redirectUrl = `${window.location.origin}/reset-password?type=${userType}`;
       
       console.log('🔐 Password reset request for:', email);
+      console.log('🔐 User type:', userType);
       console.log('🔐 Redirect URL:', redirectUrl);
       
       const { data, error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
@@ -50,6 +51,9 @@ const ForgotPassword = () => {
       }
 
       console.log('✅ Password reset email sent successfully');
+      // Note: Supabase automatically sends password reset email with actual reset link
+      // We rely on Supabase's email system for password reset
+      
       setSuccess(true);
     } catch (err) {
       console.error('Password reset error:', err);

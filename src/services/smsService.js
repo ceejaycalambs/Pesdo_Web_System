@@ -133,7 +133,9 @@ export const sendJobApprovalSMS = async (phoneNumber, employerName, jobTitle, st
 
 // Welcome SMS
 export const sendWelcomeSMS = async (phoneNumber, userName, userType) => {
-  const message = `Welcome to PESDO, ${userName}! Your ${userType} account is ready. Visit ${process.env.REACT_APP_BASE_URL || 'pesdo.gov.ph'} to get started. - PESDO`;
+  // Get base URL - use Vite's import.meta.env or fallback
+  const baseUrl = import.meta.env?.VITE_BASE_URL || 'https://pesdosurigao.online';
+  const message = `Welcome to PESDO, ${userName}! Your ${userType} account is ready. Visit ${baseUrl} to get started. - PESDO`;
   const formattedPhone = formatPhoneNumber(phoneNumber);
 
   return await sendSMS({ to: formattedPhone, message });

@@ -6,6 +6,7 @@ import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { logActivity } from '../../utils/activityLogger';
 import { sendNewApplicationSMS } from '../../services/smsService';
+import { sendNewApplicationEmail } from '../../services/emailService';
 import './JobseekerDashboard.css';
 
 const NAV_ITEMS = [
@@ -1420,6 +1421,27 @@ const JobseekerDashboard = () => {
       const inserted = Array.isArray(data) ? data[0] : data;
       const appliedAt = inserted?.applied_at || inserted?.created_at || timestamp;
 
+      // Fetch employer profile for company name and SMS
+      let companyName = selectedJob.company || selectedJob.business_name || selectedJob.employerName || 'the company';
+      let employerProfile = null;
+      
+      if (selectedJob.employer_id) {
+        try {
+          const { data: profile } = await supabase
+            .from('employer_profiles')
+            .select('mobile_number, business_name, contact_person_name')
+            .eq('id', selectedJob.employer_id)
+            .maybeSingle();
+          
+          if (profile) {
+            employerProfile = profile;
+            companyName = profile.business_name || companyName;
+          }
+        } catch (err) {
+          console.warn('Could not fetch employer profile for logging:', err);
+        }
+      }
+
       // Log activity with jobseeker name
       if (currentUser?.id && profile) {
         const jobseekerName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email || 'Unknown';
@@ -1427,42 +1449,58 @@ const JobseekerDashboard = () => {
           userId: currentUser.id,
           userType: 'jobseeker',
           actionType: 'job_applied',
-          actionDescription: `${jobseekerName} applied to job: ${selectedJob.title || selectedJob.position_title || 'Job Vacancy'}`,
+          actionDescription: `${jobseekerName} applied to ${selectedJob.title || selectedJob.position_title || 'Job Vacancy'} of ${companyName}`,
           entityType: 'application',
           entityId: inserted?.id,
           metadata: {
             jobId: selectedJob.id,
             jobTitle: selectedJob.title || selectedJob.position_title,
-            employerId: selectedJob.employer_id
+            employerId: selectedJob.employer_id,
+            companyName: companyName
           }
         });
       }
 
-      // Send SMS notification to employer (non-blocking)
+      // Send SMS and Email notifications to employer (non-blocking)
       try {
-        // Fetch employer profile
-        const { data: employerProfile } = await supabase
-          .from('employer_profiles')
-          .select('mobile_number, business_name, contact_person_name')
-          .eq('id', selectedJob.employer_id)
-          .single();
-
-        if (employerProfile?.mobile_number && profile) {
+        if (employerProfile && profile) {
           const employerName = employerProfile.contact_person_name || employerProfile.business_name || 'Employer';
           const jobseekerName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Jobseeker';
           const jobTitle = selectedJob.title || selectedJob.position_title || 'Job Vacancy';
 
-          await sendNewApplicationSMS(
-            employerProfile.mobile_number,
-            employerName,
-            jobseekerName,
-            jobTitle
-          );
-          console.log('✅ SMS notification sent to employer');
+          // Send SMS if mobile number is available
+          if (employerProfile.mobile_number) {
+            try {
+              await sendNewApplicationSMS(
+                employerProfile.mobile_number,
+                employerName,
+                jobseekerName,
+                jobTitle
+              );
+              console.log('✅ SMS notification sent to employer');
+            } catch (smsError) {
+              console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+            }
+          }
+
+          // Send Email if email is available
+          if (employerProfile.email || employerProfile.contact_email) {
+            try {
+              await sendNewApplicationEmail(
+                employerProfile.email || employerProfile.contact_email,
+                employerName,
+                jobseekerName,
+                jobTitle
+              );
+              console.log('✅ Email notification sent to employer');
+            } catch (emailError) {
+              console.error('⚠️ Failed to send email notification (non-critical):', emailError);
+            }
+          }
         }
-      } catch (smsError) {
-        // SMS failure should not block the main action
-        console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+      } catch (notificationError) {
+        // Notification failures should not block the main action
+        console.error('⚠️ Failed to send notifications (non-critical):', notificationError);
       }
 
       const normalizedApplication = {

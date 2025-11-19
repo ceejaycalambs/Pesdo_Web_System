@@ -555,6 +555,8 @@ export function AuthProvider({ children }) {
       }
       
       console.log('🔧 AuthContext: Signup successful for:', email);
+      // Note: Supabase automatically sends confirmation email with actual confirmation link
+      // We rely on Supabase's email system for account confirmation
       
       // Create user profile in Supabase using RPC function (bypasses RLS)
       if (data.user) {

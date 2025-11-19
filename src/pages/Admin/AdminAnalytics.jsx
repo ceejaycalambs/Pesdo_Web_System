@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
+import NotificationButton from '../../components/NotificationButton';
 import { supabase } from '../../supabase.js';
 import './AdminDashboard.css';
 import './AdminAnalytics.css';
@@ -49,6 +51,22 @@ const AdminAnalytics = () => {
   const [referralDateRange, setReferralDateRange] = useState({ from: '', to: '' });
   const [placementDateRange, setPlacementDateRange] = useState({ from: '', to: '' });
   const [chartPeriod, setChartPeriod] = useState('all'); // 'all', 'monthly', 'quarterly', 'yearly'
+
+  // Realtime notifications
+  const {
+    notifications: realtimeNotifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    requestNotificationPermission
+  } = useRealtimeNotifications(authUser?.id, 'admin');
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (authUser?.id) {
+      requestNotificationPermission();
+    }
+  }, [authUser?.id, requestNotificationPermission]);
 
   const analyticsSummary = analyticsData.analytics || [];
 
@@ -714,6 +732,18 @@ const AdminAnalytics = () => {
         return name;
       };
 
+      // Helper function to format employment status
+      const formatEmploymentStatus = (status) => {
+        if (status === true || status === 'employed' || status === 'true') {
+          return 'Employed';
+        }
+        if (status === false || status === 'unemployed' || status === 'false') {
+          return 'Unemployed';
+        }
+        // If status is null, undefined, or empty, default to Unemployed
+        return 'Unemployed';
+      };
+
       const jobseekerList = (jobseekerProfiles || []).map(profile => ({
         id: profile.id,
         name: formatJobseekerName(profile) || profile.email || 'Jobseeker',
@@ -723,7 +753,7 @@ const AdminAnalytics = () => {
         gender: profile.gender || '—',
         civilStatus: profile.civil_status || '—',
         education: profile.education || '—',
-        employmentStatus: profile.status === true ? 'Currently Employed' : 'Looking for Work',
+        employmentStatus: formatEmploymentStatus(profile.status),
         age: profile.age || null,
         preferredJobs: profile.preferred_jobs || [],
         registeredAt: profile.created_at
@@ -809,7 +839,7 @@ const AdminAnalytics = () => {
       const normalizePlacementStatus = (status) => {
         const normalized = (status || '').toLowerCase();
         if (['approved', 'accepted', 'hired', 'placed'].includes(normalized)) {
-          return 'Hired';
+          return 'Placed';
         }
         if (!status) return 'Completed';
         return status.charAt(0).toUpperCase() + status.slice(1);
@@ -1392,6 +1422,17 @@ const AdminAnalytics = () => {
             <p>Quick overview of key system metrics</p>
           </div>
           <div className="header-right">
+            <NotificationButton
+              notifications={realtimeNotifications}
+              unreadCount={unreadCount}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onNotificationClick={(notification) => {
+                // Navigate to job management page when notification is clicked
+                const base = window.location.hostname.startsWith('admin.') ? '' : '/admin';
+                navigate(`${base}/jobs`);
+              }}
+            />
             <button
               onClick={() => navigate(dashboardPath)}
               className="back-btn"

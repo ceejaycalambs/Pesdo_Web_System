@@ -239,10 +239,11 @@ export const useRealtimeNotifications = (userId, userType) => {
           combinedData = combinedData.concat(notificationRows.map(item => ({ ...item, __source: 'notification' })));
         }
       } else if (userType === 'admin') {
-        // Admins: Get notifications about job approvals/rejections
+        // Admins: Get notifications about pending jobs only (jobs that need approval)
         const { data, error } = await supabase
           .from('jobvacancypending')
           .select('*')
+          .eq('status', 'pending')
           .order('created_at', { ascending: false })
           .limit(50);
 
@@ -436,31 +437,23 @@ export const useRealtimeNotifications = (userId, userType) => {
 
       setupEmployerSubscription();
     } else if (userType === 'admin') {
-      // Subscribe to job approval/rejection for admins
+      // Subscribe to new pending jobs for admins (only INSERT events for pending jobs)
       channelRef.current = supabase
         .channel(`admin-notifications-${userId}`)
         .on(
           'postgres_changes',
           {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'jobvacancypending'
-          },
-          (payload) => {
-            console.log('🔔 Job status changed:', payload);
-            handleRealtimeUpdate(payload, userType);
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
             event: 'INSERT',
             schema: 'public',
-            table: 'jobvacancypending'
+            table: 'jobvacancypending',
+            filter: 'status=eq.pending'
           },
           (payload) => {
-            console.log('🔔 New job pending approval:', payload);
-            handleRealtimeUpdate(payload, userType);
+            // Only notify if the new job is pending
+            if (payload.new.status === 'pending') {
+              console.log('🔔 New job pending approval:', payload);
+              handleRealtimeUpdate(payload, userType);
+            }
           }
         )
         .subscribe();
@@ -728,12 +721,8 @@ const getNotificationMessage = (item, userType) => {
     }
     return `📝 ${applicantName} applied to "${jobTitle}".`;
   } else if (userType === 'admin') {
+    // Admin notifications are only for pending jobs
     const jobTitle = item.position_title || 'a job vacancy';
-    if (item.status === 'approved') {
-      return `✅ Job "${jobTitle}" has been approved.`;
-    } else if (item.status === 'rejected') {
-      return `❌ Job "${jobTitle}" has been rejected.`;
-    }
     return `📋 New job vacancy "${jobTitle}" pending approval.`;
   }
   return 'New notification';

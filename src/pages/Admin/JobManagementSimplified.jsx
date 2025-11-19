@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabase.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
@@ -6,6 +6,7 @@ import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
 import NotificationButton from '../../components/NotificationButton';
 import { logActivity } from '../../utils/activityLogger';
 import { sendJobApprovalSMS, sendApplicationStatusSMS } from '../../services/smsService';
+import { sendJobApprovalEmail, sendApplicationStatusEmail } from '../../services/emailService';
 import './JobManagement.css';
 
 const JobManagementSimplified = () => {
@@ -17,14 +18,18 @@ const JobManagementSimplified = () => {
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState(null);
   const [showJobModal, setShowJobModal] = useState(false);
+  const [jobApplicants, setJobApplicants] = useState([]);
+  const [loadingApplicants, setLoadingApplicants] = useState(false);
+  const [jobApplicantsForModal, setJobApplicantsForModal] = useState([]);
+  const [loadingJobApplicants, setLoadingJobApplicants] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [isUpdating, setIsUpdating] = useState(false);
   const [notification, setNotification] = useState(null);
   const [jobseekers, setJobseekers] = useState([]);
   const [selectedJobForReferral, setSelectedJobForReferral] = useState(null);
-  const [isReferring, setIsReferring] = useState(false);
-  const [isCancelingReferral, setIsCancelingReferral] = useState(false);
+  const [isReferring, setIsReferring] = useState(null); // Track which jobseeker ID is being referred (null = none)
+  const [isCancelingReferral, setIsCancelingReferral] = useState(null); // Track which jobseeker ID is having referral canceled (null = none)
   const [showReferJobseekersModal, setShowReferJobseekersModal] = useState(false);
   const [applications, setApplications] = useState([]);
   const [selectedResumeUrl, setSelectedResumeUrl] = useState(null);
@@ -92,6 +97,16 @@ const JobManagementSimplified = () => {
     if (status === false || normalize(status) === 'unemployed') return 'Unemployed';
     return 'Not specified';
   };
+
+  // Calculate placed count for a job (hired + accepted statuses)
+  const getPlacedCount = useCallback((jobId) => {
+    const jobApplications = applicationsByJob.get(jobId) || [];
+    const placedCount = jobApplications.filter((application) => {
+      const status = normalize(application.status);
+      return status === 'hired' || status === 'accepted';
+    }).length;
+    return placedCount;
+  }, [applicationsByJob, normalize]);
 
   const applyJobFilters = (jobs, fallbackStatus, enableStatusFilter = true) =>
     jobs.filter((job) => {
@@ -259,6 +274,19 @@ const JobManagementSimplified = () => {
     }
   }, [showReferJobseekersModal]);
 
+  // Fetch job applicants when job modal opens (for approved jobs only)
+  useEffect(() => {
+    if (showJobModal && selectedJob) {
+      fetchApplications();
+      // Fetch jobseekers who applied to this job (only for approved jobs)
+      if (selectedJob.jobType === 'approved' || selectedJob.status === 'approved') {
+        fetchJobApplicantsForModal(selectedJob.id);
+      } else {
+        setJobApplicantsForModal([]);
+      }
+    }
+  }, [showJobModal, selectedJob]);
+
   // Fetch applications to check referral status
   const fetchApplications = async () => {
     try {
@@ -270,6 +298,78 @@ const JobManagementSimplified = () => {
       setApplications(data || []);
     } catch (error) {
       console.error('Error fetching applications:', error);
+    }
+  };
+
+  // Fetch jobseekers who applied to a specific job
+  const fetchJobApplicantsForModal = async (jobId) => {
+    if (!jobId) {
+      setJobApplicantsForModal([]);
+      return;
+    }
+
+    try {
+      setLoadingJobApplicants(true);
+      
+      // Fetch applications for this job
+      const { data: jobApplications, error: appError } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('job_id', jobId);
+
+      if (appError) throw appError;
+
+      if (!jobApplications || jobApplications.length === 0) {
+        setJobApplicantsForModal([]);
+        setLoadingJobApplicants(false);
+        return;
+      }
+
+      // Get unique jobseeker IDs
+      const jobseekerIds = [...new Set(jobApplications.map(app => app.jobseeker_id).filter(Boolean))];
+
+      if (jobseekerIds.length === 0) {
+        setJobApplicantsForModal([]);
+        setLoadingJobApplicants(false);
+        return;
+      }
+
+      // Fetch jobseeker profiles
+      const { data: jobseekerProfiles, error: profileError } = await supabase
+        .from('jobseeker_profiles')
+        .select('id, first_name, last_name, email, phone')
+        .in('id', jobseekerIds);
+
+      if (profileError) throw profileError;
+
+      // Combine applications with jobseeker profiles
+      const applicantsWithStatus = jobApplications.map(application => {
+        const profile = jobseekerProfiles?.find(p => p.id === application.jobseeker_id);
+        return {
+          applicationId: application.id,
+          jobseekerId: application.jobseeker_id,
+          status: application.status || 'pending',
+          appliedAt: application.created_at || application.applied_at,
+          firstName: profile?.first_name || 'Unknown',
+          lastName: profile?.last_name || '',
+          email: profile?.email || 'No email',
+          phone: profile?.phone || 'No phone'
+        };
+      });
+
+      // Sort by applied date (newest first)
+      applicantsWithStatus.sort((a, b) => {
+        const dateA = new Date(a.appliedAt || 0);
+        const dateB = new Date(b.appliedAt || 0);
+        return dateB - dateA;
+      });
+
+      setJobApplicantsForModal(applicantsWithStatus);
+    } catch (error) {
+      console.error('Error fetching job applicants:', error);
+      setJobApplicantsForModal([]);
+    } finally {
+      setLoadingJobApplicants(false);
     }
   };
 
@@ -329,7 +429,7 @@ const JobManagementSimplified = () => {
     }
 
     try {
-      setIsReferring(true);
+      setIsReferring(jobseekerId);
 
       // Use RPC function to create/update referred application (bypasses RLS)
       const { data, error } = await supabase.rpc('create_referred_application', {
@@ -395,11 +495,22 @@ const JobManagementSimplified = () => {
           ? `${jobseeker.first_name || ''} ${jobseeker.last_name || ''}`.trim() || jobseeker.email
           : 'Unknown';
 
+        // Fetch employer profile for company name
+        let companyName = 'the company';
+        if (selectedJobForReferral.employer_id) {
+          const { data: employerProfile } = await supabase
+            .from('employer_profiles')
+            .select('business_name')
+            .eq('id', selectedJobForReferral.employer_id)
+            .maybeSingle();
+          companyName = employerProfile?.business_name || selectedJobForReferral.business_name || 'the company';
+        }
+
         await logActivity({
           userId: currentUser.id,
           userType: adminRole === 'super_admin' ? 'super_admin' : 'admin',
           actionType: 'jobseeker_referred',
-          actionDescription: `${adminName} referred jobseeker ${jobseekerName} to job: ${selectedJobForReferral.position_title || selectedJobForReferral.title}`,
+          actionDescription: `${adminName} referred ${jobseekerName} to ${selectedJobForReferral.position_title || selectedJobForReferral.title} of ${companyName}`,
           entityType: 'application',
           entityId: null, // Application ID might not be available immediately
           metadata: {
@@ -407,14 +518,15 @@ const JobManagementSimplified = () => {
             jobseekerId: jobseekerId,
             jobseekerName: jobseekerName,
             jobId: selectedJobForReferral.id,
-            jobTitle: selectedJobForReferral.position_title || selectedJobForReferral.title
+            jobTitle: selectedJobForReferral.position_title || selectedJobForReferral.title,
+            companyName: companyName
           }
         });
       }
 
-      // Send SMS notification to jobseeker (non-blocking)
+      // Send SMS and Email notifications to jobseeker (non-blocking)
       try {
-        // Get jobseeker profile for phone number
+        // Get jobseeker profile for phone number and email
         const jobseeker = jobseekers.find(js => js.id === jobseekerId);
         
         // Fetch employer profile for company name
@@ -424,28 +536,51 @@ const JobManagementSimplified = () => {
           .eq('id', selectedJobForReferral.employer_id)
           .single();
 
-        if (jobseeker?.phone && selectedJobForReferral) {
+        if (selectedJobForReferral && jobseeker) {
           const jobseekerName = `${jobseeker.first_name || ''} ${jobseeker.last_name || ''}`.trim() || jobseeker.email || 'Jobseeker';
           const companyName = employerProfile?.business_name || 'Company';
           const jobTitle = selectedJobForReferral.position_title || selectedJobForReferral.title || 'Job Vacancy';
 
-          await sendApplicationStatusSMS(
-            jobseeker.phone,
-            jobseekerName,
-            jobTitle,
-            'referred',
-            companyName
-          );
-          console.log('✅ SMS notification sent to jobseeker for referral');
+          // Send SMS if phone number is available
+          if (jobseeker.phone) {
+            try {
+              await sendApplicationStatusSMS(
+                jobseeker.phone,
+                jobseekerName,
+                jobTitle,
+                'referred',
+                companyName
+              );
+              console.log('✅ SMS notification sent to jobseeker for referral');
+            } catch (smsError) {
+              console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+            }
+          }
+
+          // Send Email if email is available
+          if (jobseeker.email) {
+            try {
+              await sendApplicationStatusEmail(
+                jobseeker.email,
+                jobseekerName,
+                jobTitle,
+                'referred',
+                companyName
+              );
+              console.log('✅ Email notification sent to jobseeker for referral');
+            } catch (emailError) {
+              console.error('⚠️ Failed to send email notification (non-critical):', emailError);
+            }
+          }
         } else {
-          console.log('⚠️ SMS not sent - missing phone number or job data', {
-            hasPhone: !!jobseeker?.phone,
+          console.log('⚠️ Notifications not sent - missing jobseeker or job data', {
+            hasJobseeker: !!jobseeker,
             hasJob: !!selectedJobForReferral
           });
         }
-      } catch (smsError) {
-        // SMS failure should not block the main action
-        console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+      } catch (notificationError) {
+        // Notification failures should not block the main action
+        console.error('⚠️ Failed to send notifications (non-critical):', notificationError);
       }
 
       // Refresh applications and jobseekers
@@ -456,7 +591,7 @@ const JobManagementSimplified = () => {
       console.error('Error referring jobseeker:', error);
       showNotification('error', `Failed to refer jobseeker: ${error.message}`);
     } finally {
-      setIsReferring(false);
+      setIsReferring(null);
     }
   };
 
@@ -468,7 +603,7 @@ const JobManagementSimplified = () => {
     }
 
     try {
-      setIsCancelingReferral(true);
+      setIsCancelingReferral(jobseekerId);
 
       // Find the existing application
       const { data: existingApp, error: fetchError } = await supabase
@@ -514,11 +649,22 @@ const JobManagementSimplified = () => {
           ? `${jobseeker.first_name || ''} ${jobseeker.last_name || ''}`.trim() || jobseeker.email
           : 'Unknown';
 
+        // Fetch employer profile for company name
+        let companyName = 'the company';
+        if (selectedJobForReferral.employer_id) {
+          const { data: employerProfile } = await supabase
+            .from('employer_profiles')
+            .select('business_name')
+            .eq('id', selectedJobForReferral.employer_id)
+            .maybeSingle();
+          companyName = employerProfile?.business_name || selectedJobForReferral.business_name || 'the company';
+        }
+
         await logActivity({
           userId: currentUser.id,
           userType: adminRole === 'super_admin' ? 'super_admin' : 'admin',
           actionType: 'referral_canceled',
-          actionDescription: `${adminName} canceled referral for jobseeker ${jobseekerName} from job: ${selectedJobForReferral.position_title || selectedJobForReferral.title}`,
+          actionDescription: `${adminName} canceled referral for ${jobseekerName} from ${selectedJobForReferral.position_title || selectedJobForReferral.title} of ${companyName}`,
           entityType: 'application',
           entityId: existingApp.id,
           metadata: {
@@ -526,7 +672,8 @@ const JobManagementSimplified = () => {
             jobseekerId: jobseekerId,
             jobseekerName: jobseekerName,
             jobId: selectedJobForReferral.id,
-            jobTitle: selectedJobForReferral.position_title || selectedJobForReferral.title
+            jobTitle: selectedJobForReferral.position_title || selectedJobForReferral.title,
+            companyName: companyName
           }
         });
       }
@@ -539,7 +686,7 @@ const JobManagementSimplified = () => {
       console.error('Error canceling referral:', error);
       showNotification('error', `Failed to cancel referral: ${error.message}`);
     } finally {
-      setIsCancelingReferral(false);
+      setIsCancelingReferral(null);
     }
   };
 
@@ -663,6 +810,21 @@ const JobManagementSimplified = () => {
                   <span className="applications-count">
                     👤 {referredApplications.length} Referred
                   </span>
+                  {(() => {
+                    const placedCount = getPlacedCount(job.id);
+                    const vacancyCount = Number(job.vacancy_count || job.total_positions || 0);
+                    const placedDisplay = vacancyCount > 0 
+                      ? `${placedCount}/${vacancyCount} Placed` 
+                      : placedCount > 0 
+                        ? `${placedCount} Placed` 
+                        : '0 Placed';
+                    
+                    return placedCount > 0 || vacancyCount > 0 ? (
+                      <span className="placed-count" title={`${placedCount} jobseeker(s) placed/hired`}>
+                        🎉 {placedDisplay}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
 
                 <div className="job-item-action-hint">Click to refer jobseekers →</div>
@@ -821,6 +983,82 @@ const JobManagementSimplified = () => {
     }
   };
 
+  // Handle notification click - open job details modal
+  const handleNotificationClick = useCallback((notification) => {
+    const notificationData = notification?.data;
+    if (!notificationData) {
+      console.warn('⚠️ Notification has no data:', notification);
+      return;
+    }
+
+    // Extract job ID from notification data
+    // Admin notifications come from jobvacancypending table (pending jobs only)
+    const jobId = notificationData.id || notificationData.job_id;
+    
+    if (!jobId) {
+      console.warn('⚠️ Notification has no job ID:', notificationData);
+      return;
+    }
+
+    console.log('📋 Admin notification clicked for job:', jobId);
+
+    // Admin notifications are for pending jobs, so check pendingJobs first
+    let foundJob = pendingJobs.find(j => j.id === jobId);
+    let jobType = 'pending';
+
+    // If not found in pending, check approvedJobs (in case it was just approved)
+    if (!foundJob) {
+      foundJob = approvedJobs.find(j => j.id === jobId);
+      jobType = 'approved';
+    }
+
+    if (foundJob) {
+      // Job found, switch to appropriate tab and open modal
+      setActiveTab(jobType === 'pending' ? 'pending' : 'approved');
+      handleViewJob(foundJob, jobType);
+    } else {
+      // Job not found, refetch jobs and retry
+      console.log('🔄 Job not found in current list, refetching...');
+      fetchJobs().then(() => {
+        // Wait a bit for state to update, then retry
+        setTimeout(() => {
+          // Use the updated state after fetchJobs completes
+          // We need to access the latest state, so we'll query directly
+          console.log('🔍 Querying database directly for job:', jobId);
+          
+          // Try jobvacancypending first (pending jobs)
+          supabase
+            .from('jobvacancypending')
+            .select('*')
+            .eq('id', jobId)
+            .single()
+            .then(({ data, error }) => {
+              if (!error && data) {
+                setActiveTab('pending');
+                handleViewJob(data, 'pending');
+              } else {
+                // Try jobs table (approved jobs)
+                supabase
+                  .from('jobs')
+                  .select('*')
+                  .eq('id', jobId)
+                  .single()
+                  .then(({ data: jobData, error: jobError }) => {
+                    if (!jobError && jobData) {
+                      setActiveTab('approved');
+                      handleViewJob(jobData, 'approved');
+                    } else {
+                      console.error('❌ Job not found in database:', jobId);
+                      showNotification('error', 'Job not found. It may have been deleted.');
+                    }
+                  });
+              }
+            });
+        }, 500);
+      });
+    }
+  }, [pendingJobs, approvedJobs]);
+
   const sanitizeText = (value) => {
     if (value === undefined || value === null) return null;
     if (typeof value !== 'string') return value;
@@ -932,28 +1170,51 @@ const JobManagementSimplified = () => {
         console.log('✅ Notification created:', notificationData);
       }
 
-      // Send SMS notification to employer (non-blocking)
+      // Send SMS and Email notifications to employer (non-blocking)
       try {
         // Fetch employer profile
         const { data: employerProfile } = await supabase
           .from('employer_profiles')
-          .select('mobile_number, business_name, contact_person_name')
+          .select('mobile_number, email, contact_email, business_name, contact_person_name')
           .eq('id', job.employer_id)
           .single();
 
-        if (employerProfile?.mobile_number) {
+        if (employerProfile) {
           const employerName = employerProfile.contact_person_name || employerProfile.business_name || 'Employer';
-          await sendJobApprovalSMS(
-            employerProfile.mobile_number,
-            employerName,
-            job.position_title,
-            'approved'
-          );
-          console.log('✅ SMS notification sent to employer');
+          const jobTitle = job.position_title || job.title || 'Job Vacancy';
+          const employerEmail = employerProfile.contact_email || employerProfile.email;
+
+          // Send SMS if mobile number is available
+          if (employerProfile.mobile_number) {
+            sendJobApprovalSMS(
+              employerProfile.mobile_number,
+              employerName,
+              jobTitle,
+              'approved'
+            ).then(() => {
+              console.log('✅ SMS notification sent to employer');
+            }).catch((smsError) => {
+              console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+            });
+          }
+
+          // Send Email if email is available
+          if (employerEmail) {
+            sendJobApprovalEmail(
+              employerEmail,
+              employerName,
+              jobTitle,
+              'approved'
+            ).then(() => {
+              console.log('✅ Email notification sent to employer');
+            }).catch((emailError) => {
+              console.error('⚠️ Failed to send email notification (non-critical):', emailError);
+            });
+          }
         }
-      } catch (smsError) {
-        // SMS failure should not block the main action
-        console.error('⚠️ Failed to send SMS notification (non-critical):', smsError);
+      } catch (notificationError) {
+        // Notification failures should not block the main action
+        console.error('⚠️ Failed to send notifications (non-critical):', notificationError);
       }
 
       // Log activity with admin name
@@ -969,18 +1230,30 @@ const JobManagementSimplified = () => {
           ? `${adminProfile.first_name || ''} ${adminProfile.last_name || ''}`.trim() || adminProfile.username || adminProfile.email || 'Admin'
           : 'Admin';
 
+        // Fetch employer profile for company name
+        let companyName = 'the company';
+        if (job.employer_id) {
+          const { data: employerProfile } = await supabase
+            .from('employer_profiles')
+            .select('business_name')
+            .eq('id', job.employer_id)
+            .maybeSingle();
+          companyName = employerProfile?.business_name || job.business_name || 'the company';
+        }
+
         await logActivity({
           userId: currentUser.id,
           userType: adminRole === 'super_admin' ? 'super_admin' : 'admin',
           actionType: 'job_approved',
-          actionDescription: `${adminName} approved job vacancy: ${job.position_title}`,
+          actionDescription: `${adminName} approved ${job.position_title || job.title || 'job vacancy'} of ${companyName}`,
           entityType: 'job',
           entityId: insertData?.id || job.id,
           metadata: {
             adminName: adminName,
             jobTitle: job.position_title,
             employerId: job.employer_id,
-            vacancyCount: job.vacancy_count
+            vacancyCount: job.vacancy_count,
+            companyName: companyName
           }
         });
       }
@@ -1001,6 +1274,10 @@ const JobManagementSimplified = () => {
   const handleViewJob = (job, jobType) => {
     setSelectedJob({ ...job, jobType });
     setShowJobModal(true);
+    // Fetch applicants for this job
+    if (job.id) {
+      fetchJobApplicants(job.id);
+    }
   };
 
   const handleEditJob = (job) => {
@@ -1249,31 +1526,47 @@ const JobManagementSimplified = () => {
                   <th>Location</th>
                   <th>Type</th>
                   <th>Vacancies</th>
+                  <th>Placed</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredApprovedJobs.map((job) => (
-                  <tr key={job.id}>
-                    <td>
-                      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                        {job.company_logo_url && (
-                          <img src={job.company_logo_url} alt="logo" style={{width:28,height:28,borderRadius:4,objectFit:'cover'}} />
-                        )}
-                        <span>{job.business_name || 'Company Name Not Provided'}</span>
-                      </div>
-                    </td>
-                    <td>{job.title || job.position_title}</td>
-                    <td>{job.location || job.place_of_work}</td>
-                    <td>{job.job_type || job.nature_of_work}</td>
-                    <td>{job.vacancy_count || job.total_positions || '—'}</td>
-                    <td><span className="status-badge approved">Approved</span></td>
-                    <td style={{whiteSpace:'nowrap'}}>
-                      <button className="btn-secondary" onClick={() => handleViewJob(job, 'approved')}>View</button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredApprovedJobs.map((job) => {
+                  const placedCount = getPlacedCount(job.id);
+                  const vacancyCount = Number(job.vacancy_count || job.total_positions || 0);
+                  const placedDisplay = vacancyCount > 0 
+                    ? `${placedCount}/${vacancyCount}` 
+                    : placedCount > 0 
+                      ? `${placedCount}` 
+                      : '0';
+                  
+                  return (
+                    <tr key={job.id}>
+                      <td>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                          {job.company_logo_url && (
+                            <img src={job.company_logo_url} alt="logo" style={{width:28,height:28,borderRadius:4,objectFit:'cover'}} />
+                          )}
+                          <span>{job.business_name || 'Company Name Not Provided'}</span>
+                        </div>
+                      </td>
+                      <td>{job.title || job.position_title}</td>
+                      <td>{job.location || job.place_of_work}</td>
+                      <td>{job.job_type || job.nature_of_work}</td>
+                      <td>{job.vacancy_count || job.total_positions || '—'}</td>
+                      <td>
+                        <span className="placed-count-badge" title={`${placedCount} jobseeker(s) placed/hired`}>
+                          🎉 {placedDisplay}
+                        </span>
+                      </td>
+                      <td><span className="status-badge approved">Approved</span></td>
+                      <td style={{whiteSpace:'nowrap'}}>
+                        <button className="btn-secondary" onClick={() => handleViewJob(job, 'approved')}>View</button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1355,15 +1648,7 @@ const JobManagementSimplified = () => {
                     unreadCount={unreadCount}
                     onMarkAsRead={markAsRead}
                     onMarkAllAsRead={markAllAsRead}
-                    onNotificationClick={(notification) => {
-                      // Admin is already on the job management page
-                      // If notification is about a pending job, we could scroll to it or highlight it
-                      if (notification.data && notification.data.id) {
-                        console.log('📋 Notification clicked for job:', notification.data.id);
-                        // The job should already be visible in the pending jobs list
-                        // Could add scroll-to functionality here if needed
-                      }
-                    }}
+                    onNotificationClick={handleNotificationClick}
                   />
             <button 
               className="back-btn"
@@ -1472,6 +1757,26 @@ const JobManagementSimplified = () => {
                     <label>Vacancy Count</label>
                     <span className="vacancy-count">{selectedJob.vacancy_count} position(s)</span>
                   </div>
+                  {selectedJob.jobType === 'approved' || selectedJob.status === 'approved' ? (
+                    <div className="info-item">
+                      <label>Placed/Hired</label>
+                      <span className="placed-count-display">
+                        {(() => {
+                          const placedCount = getPlacedCount(selectedJob.id);
+                          const vacancyCount = Number(selectedJob.vacancy_count || selectedJob.total_positions || 0);
+                          const placedDisplay = vacancyCount > 0 
+                            ? `${placedCount} of ${vacancyCount} position(s) filled` 
+                            : `${placedCount} jobseeker(s) placed`;
+                          
+                          return (
+                            <span className={placedCount >= vacancyCount && vacancyCount > 0 ? 'placed-full' : ''}>
+                              🎉 {placedDisplay}
+                            </span>
+                          );
+                        })()}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="info-item">
                     <label>Salary Range</label>
                     <span className="salary">{selectedJob.salary_range || 'Not specified'}</span>
@@ -1608,6 +1913,79 @@ const JobManagementSimplified = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Jobseekers List Section - Only for approved jobs */}
+              {selectedJob.jobType === 'approved' || selectedJob.status === 'approved' ? (
+                <div className="admin-section jobseekers-section">
+                  <div className="section-header">
+                    <h3>👥 Jobseekers Who Applied</h3>
+                    <span className="applicants-count-badge">
+                      {loadingJobApplicants ? 'Loading...' : `${jobApplicantsForModal.length} applicant(s)`}
+                    </span>
+                  </div>
+                  
+                  {loadingJobApplicants ? (
+                    <div className="loading-applicants">
+                      <p>Loading applicants...</p>
+                    </div>
+                  ) : jobApplicantsForModal.length === 0 ? (
+                    <div className="no-applicants">
+                      <p>No jobseekers have applied to this job yet.</p>
+                    </div>
+                  ) : (
+                    <div className="applicants-list-container">
+                      <table className="applicants-table">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Status</th>
+                            <th>Applied Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {jobApplicantsForModal.map((applicant) => {
+                            const statusClass = (applicant.status || 'pending').toLowerCase();
+                            const statusLabel = 
+                              statusClass === 'pending' ? '⏳ Pending' :
+                              statusClass === 'in_review' ? '👀 In Review' :
+                              statusClass === 'shortlisted' ? '⭐ Shortlisted' :
+                              statusClass === 'referred' ? '📋 Referred' :
+                              statusClass === 'accepted' ? '✅ Accepted' :
+                              statusClass === 'hired' ? '🎉 Hired' :
+                              statusClass === 'rejected' ? '❌ Rejected' :
+                              '⏳ Pending';
+                            
+                            const fullName = `${applicant.firstName} ${applicant.lastName}`.trim() || 'Unknown';
+                            const appliedDate = applicant.appliedAt 
+                              ? new Date(applicant.appliedAt).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })
+                              : 'N/A';
+
+                            return (
+                              <tr key={applicant.applicationId}>
+                                <td className="applicant-name">{fullName}</td>
+                                <td className="applicant-email">{applicant.email}</td>
+                                <td className="applicant-phone">{applicant.phone}</td>
+                                <td>
+                                  <span className={`applicant-status-badge status-${statusClass}`}>
+                                    {statusLabel}
+                                  </span>
+                                </td>
+                                <td className="applicant-date">{appliedDate}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
             
             <div className="modal-footer admin-footer">
@@ -1809,18 +2187,26 @@ const JobManagementSimplified = () => {
                                       {isReferred ? (
                                         <button
                                           className="btn-cancel-referral"
-                                          onClick={() => handleCancelReferral(jobseeker.id)}
-                                          disabled={isCancelingReferral}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCancelReferral(jobseeker.id);
+                                          }}
+                                          disabled={isCancelingReferral === jobseeker.id}
+                                          type="button"
                                         >
-                                          {isCancelingReferral ? 'Canceling...' : 'Cancel Referral'}
+                                          {isCancelingReferral === jobseeker.id ? 'Canceling...' : 'Cancel Referral'}
                                         </button>
                                       ) : (
                                         <button
                                           className={`btn-refer ${isReferred ? 'referred' : ''}`}
-                                          onClick={() => handleReferJobseeker(jobseeker.id)}
-                                          disabled={isReferring || isReferred}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleReferJobseeker(jobseeker.id);
+                                          }}
+                                          disabled={isReferring === jobseeker.id || isReferred}
+                                          type="button"
                                         >
-                                          {isReferring ? 'Referring...' : 'Refer'}
+                                          {isReferring === jobseeker.id ? 'Referring...' : 'Refer'}
                                         </button>
                                       )}
                                     </td>
