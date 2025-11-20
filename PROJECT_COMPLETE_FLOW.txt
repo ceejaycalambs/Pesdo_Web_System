@@ -1,0 +1,554 @@
+PESDO Web Application - Complete Project Flow
+==============================================
+
+Project Overview
+----------------
+PESDO (Public Employment Service Office) Web Application is a job matching platform connecting jobseekers with employers, managed by administrators. The system handles:
+
+- Jobseeker Registration & Profile Management
+- Employer Registration & Verification
+- Job Vacancy Submission & Approval
+- Job Application Process
+- Admin Management & Oversight
+- Real-time Notifications (Email & SMS)
+
+Architecture Overview
+---------------------
+
+Technology Stack:
+- Frontend: React 19.1.0 with Vite
+- Backend: Supabase (PostgreSQL + Edge Functions)
+- Authentication: Supabase Auth
+- Storage: Supabase Storage
+- Notifications: Email (Edge Functions) + SMS (TextBee/Twilio)
+- Routing: React Router DOM v7
+
+Project Structure:
+src/
+├── pages/
+│   ├── Admin/          # Admin dashboard & management
+│   ├── Employer/       # Employer dashboard
+│   ├── Jobseeker/      # Jobseeker dashboard
+│   └── [Auth pages]    # Login, Register, etc.
+├── contexts/
+│   └── AuthContext.jsx # Authentication & user profile management
+├── services/
+│   ├── emailService.js # Email notification service
+│   └── smsService.js   # SMS notification service
+├── hooks/
+│   ├── useRealtimeData.js      # Real-time data subscriptions
+│   └── useRealtimeNotifications.js # Real-time notifications
+└── components/
+    └── NotificationButton.jsx  # Notification UI component
+
+
+FLOW 1: Authentication & User Registration
+==========================================
+
+1.1 User Registration Flow
+---------------------------
+
+REGISTRATION
+    │
+    ├─── JOBSEEKER SIGNUP
+    │    │
+    │    └─── Supabase Auth User Created
+    │         │
+    │         └─── create_jobseeker_profile() RPC Called
+    │              │
+    │              └─── Profile Created in jobseeker_profiles Table
+    │
+    └─── EMPLOYER SIGNUP
+         │
+         └─── Supabase Auth User Created
+              │
+              └─── create_employer_profile() RPC Called
+                   │
+                   └─── Profile Created in employer_profiles Table
+                        verification_status = 'unverified'
+    
+    └─── Redirect to Dashboard Based on User Type
+
+Key Files:
+- src/contexts/AuthContext.jsx → signup() function
+- database/update_employer_verification_status.sql → create_employer_profile() function
+
+Registration Steps:
+1. User selects role (Jobseeker/Employer)
+2. Enters email, password, basic info
+3. Supabase creates auth user
+4. RPC function creates profile in appropriate table
+5. For employers: verification_status = 'unverified' (default)
+6. User redirected to respective dashboard
+
+
+1.2 Login Flow
+---------------
+
+LOGIN PROCESS
+    │
+    └─── User Enters Credentials (Email + Password)
+         │
+         └─── Supabase Auth Authenticates User
+              │
+              └─── AuthContext Fetches User Profile (Jobseeker/Employer/Admin)
+                   │
+                   ├─── Profile Found
+                   │    └─── Set userData
+                   │         └─── Set profileLoaded
+                   │              └─── Redirect Based on Type
+                   │                   - Jobseeker → /jobseeker
+                   │                   - Employer → /employer
+                   │                   - Admin → /admin/dashboard
+                   │
+                   └─── Profile Not Found
+                        └─── Show Error
+                             └─── Prevent Access
+
+Key Files:
+- src/contexts/AuthContext.jsx → login() and fetchUserProfile() functions
+- src/Login/Login.jsx → Login UI and redirect logic
+
+Login Steps:
+1. User enters credentials
+2. Supabase authenticates
+3. AuthContext fetches profile from database
+4. Profile determines user type and permissions
+5. User redirected to appropriate dashboard
+
+
+FLOW 2: Employer Verification Process
+======================================
+
+2.1 Complete Verification Flow
+--------------------------------
+
+EMPLOYER VERIFICATION COMPLETE FLOW
+    │
+    └─── STEP 1: Account Created
+         verification_status = 'unverified'
+         │
+         └─── STEP 2: Upload Documents
+              - BIR Document
+              - Business Permit
+              │
+              ├─── Only ONE Document Uploaded
+              │    └─── Status: 'unverified'
+              │
+              └─── BOTH Documents Uploaded
+                   └─── RPC Function Called
+                        │
+                        └─── STEP 3: Auto Status Update
+                             → 'pending'
+                             → verification_notes = NULL
+                             │
+                             └─── STEP 4: Admin Review
+                                  - Views in "Pending" Tab
+                                  - Opens Verification Modal
+                                  │
+                                  ├─── APPROVE
+                                  │    Status: 'approved'
+                                  │    Can Post Jobs ✅
+                                  │    Email + SMS Sent
+                                  │
+                                  ├─── REJECT
+                                  │    Status: 'rejected'
+                                  │    Cannot Post ❌
+                                  │    Email + SMS Sent
+                                  │    │
+                                  │    └─── RE-VERIFICATION
+                                  │         Upload New Docs
+                                  │         → Status: 'pending'
+                                  │
+                                  ├─── SUSPEND
+                                  │    Status: 'suspended'
+                                  │    Cannot Post ❌
+                                  │    Email + SMS Sent
+                                  │
+                                  └─── (No Action)
+                                       Status: 'pending'
+                                       No Notification
+
+Key Files:
+- src/pages/Employer/EmployerDashboard.jsx → handleDocumentUpload()
+- src/pages/Admin/EmployerVerificationSimple.jsx → handleVerification()
+- database/update_employer_verification_status.sql → update_employer_verification_status() function
+
+Status Transitions:
+- unverified → pending (automatic when both docs uploaded)
+- rejected → pending (automatic when both docs re-uploaded)
+- pending → approved (admin action)
+- pending → rejected (admin action)
+- approved → suspended (admin action)
+- suspended → approved (admin action - unsuspend)
+
+
+FLOW 3: Job Submission & Management
+=====================================
+
+3.1 Job Submission Flow
+------------------------
+
+JOB SUBMISSION FLOW
+    │
+    └─── Employer Fills Job Form
+         - Position Title
+         - Job Description
+         - Salary, Vacancies
+         - Valid From/Until
+         │
+         └─── Validation Checks
+              - Required Fields
+              - Date Validation
+              - Verification Status = 'approved'?
+              │
+              ├─── NOT VERIFIED
+              │    └─── Show Error
+              │         └─── Block Submission
+              │
+              └─── VERIFIED
+                   └─── Proceed
+                        │
+                        └─── Job Inserted into 'jobvacancypending' Table
+                             status = 'pending'
+                             │
+                             └─── Admin Notifications
+                                  - Email to All Admins
+                                  - In-App Notification
+                                  │
+                                  └─── Job Appears in Admin "Pending Jobs" Tab
+
+Key Files:
+- src/pages/Employer/EmployerDashboard.jsx → handleSubmitJob()
+- src/services/emailService.js → sendNewJobSubmissionEmail()
+
+Job Submission Steps:
+1. Employer fills job form (only if verification_status = 'approved')
+2. Client-side validation (dates, required fields)
+3. Job inserted into jobvacancypending table
+4. All admins receive email notification
+5. Job appears in admin dashboard for review
+
+
+3.2 Job Approval/Rejection Flow
+---------------------------------
+
+JOB APPROVAL/REJECTION FLOW
+    │
+    └─── Admin Reviews Job in "Pending Jobs" Tab
+         │
+         ├─── APPROVE
+         │    │
+         │    └─── Job Moved to 'jobs' Table
+         │         status = 'approved'
+         │         posting_date = today
+         │         │
+         │         └─── Employer Notified
+         │              - Email
+         │              - SMS
+         │              - In-App
+         │              │
+         │              └─── Job Visible to Jobseekers
+         │                   (in Jobseeker Dashboard)
+         │
+         └─── REJECT
+              │
+              └─── Status = 'rejected'
+                   Stays in 'jobvacancypending'
+                   rejection_reason
+                   │
+                   └─── Employer Notified
+                        - Email
+                        - SMS
+                        - In-App
+                        │
+                        └─── Job Appears in Employer "Rejected" Tab
+
+Key Files:
+- src/pages/Admin/JobManagementSimplified.jsx → handleApproveJob() and handleRejectJob()
+- src/services/emailService.js → sendJobApprovalEmail()
+- src/services/smsService.js → sendJobApprovalSMS()
+
+Job Approval Steps:
+1. Admin reviews job details
+2. Admin clicks "Approve" or "Reject"
+3. If approved: Job moved to jobs table, visible to jobseekers
+4. If rejected: Status updated, stays in pending table
+5. Employer receives notifications (Email + SMS)
+6. Job appears in appropriate tab
+
+
+FLOW 4: Job Application Process
+=================================
+
+4.1 Jobseeker Application Flow
+-------------------------------
+
+JOBSEEKER APPLICATION FLOW
+    │
+    └─── Jobseeker Browses Jobs in "All Jobs" Tab
+         │
+         └─── Clicks "View Details" or "Apply Now"
+              │
+              └─── Validation Checks
+                   - Already Applied?
+                   - Job Still Open?
+                   - Valid From Date?
+                   - Vacancies Available?
+                   │
+                   ├─── CANNOT APPLY
+                   │    └─── Show Reason
+                   │         └─── Disable Button
+                   │
+                   └─── CAN APPLY
+                        └─── Create Application in 'applications' Table
+                             status = 'pending'
+                             applied_at = timestamp
+                             │
+                             └─── Employer Notified
+                                  - Email
+                                  - SMS
+                                  - In-App Notification
+                                  │
+                                  └─── Application Appears in Jobseeker "Applied" Tab
+
+Key Files:
+- src/pages/Jobseeker/JobseekerDashboard.jsx → handleApplyToJob()
+- src/services/emailService.js → sendNewApplicationEmail()
+- src/services/smsService.js → sendNewApplicationSMS()
+
+Application Steps:
+1. Jobseeker views available jobs
+2. Clicks "Apply Now" button
+3. System validates eligibility
+4. Application created in applications table
+5. Employer receives notifications
+6. Application appears in jobseeker's "Applied" tab
+
+
+4.2 Application Status Update Flow
+----------------------------------
+
+APPLICATION STATUS UPDATE FLOW
+    │
+    ├─── EMPLOYER ACTION (Accept/Reject)
+    │    │
+    │    └─── Status Updated to 'accepted' or 'rejected'
+    │
+    └─── ADMIN ACTION (Refer Jobseeker)
+         │
+         └─── Status Updated to 'referred'
+              (Admin can refer jobseekers to jobs)
+    
+    └─── Jobseeker Notified
+         - Email
+         - SMS
+         - In-App Notification
+         │
+         └─── Application Status Updated in Dashboard
+
+Key Files:
+- src/pages/Employer/EmployerDashboard.jsx → handleApplicationDecision()
+- src/pages/Admin/JobManagementSimplified.jsx → handleReferJobseeker()
+- src/services/emailService.js → sendApplicationStatusEmail()
+- src/services/smsService.js → sendApplicationStatusSMS()
+
+Status Update Steps:
+1. Employer/Admin updates application status
+2. Status saved to database
+3. Jobseeker receives notifications
+4. Status reflected in both dashboards
+
+
+FLOW 5: Notification System
+=============================
+
+5.1 Complete Notification Matrix
+----------------------------------
+
+Event                          | Recipient  | Email | SMS | In-App
+-------------------------------|------------|-------|-----|--------
+Jobseeker applies to job       | Employer   | Yes   | Yes | Yes
+Application accepted           | Jobseeker  | Yes   | Yes | Yes
+Application rejected           | Jobseeker  | Yes   | Yes | Yes
+Admin refers jobseeker         | Jobseeker  | Yes   | Yes | Yes
+Job approved                   | Employer   | Yes   | Yes | Yes
+Job rejected                   | Employer   | Yes   | Yes | Yes
+New job submitted             | Admin      | Yes   | No  | Yes
+Account verified              | Employer   | Yes   | Yes | Yes
+Account rejected              | Employer   | Yes   | Yes | Yes
+Account suspended             | Employer   | Yes   | Yes | Yes
+
+
+5.2 Notification Flow Architecture
+------------------------------------
+
+NOTIFICATION TRIGGER
+    │
+    └─── Event Occurs (Application, Status Change, etc.)
+         │
+         ├─── Fetch Recipient Info (Email, Phone)
+         │
+         └─── Create In-App Notification in 'notifications' Table
+              │
+              └─── Parallel Execution (Non-blocking)
+                   │
+                   ├─── Send Email (Edge Func)
+                   │
+                   └─── Send SMS (Edge Func)
+                        │
+                        └─── Real-time Subscription Updates UI
+                             (useRealtimeNotifications)
+
+Key Files:
+- src/services/emailService.js → All email functions
+- src/services/smsService.js → All SMS functions
+- src/hooks/useRealtimeNotifications.js → Real-time notification updates
+- supabase/functions/send-email/ → Email Edge Function
+- supabase/functions/send-sms/ → SMS Edge Function
+
+
+FLOW 6: Admin Management
+=========================
+
+6.1 Admin Dashboard Features
+-----------------------------
+
+ADMIN DASHBOARD STRUCTURE
+    │
+    ├─── ADMIN (role='admin')
+    │    │
+    │    └─── Available Features:
+    │         - Job Management
+    │         - Employer Verification
+    │         - User Management
+    │         - Analytics
+    │
+    └─── SUPER_ADMIN (role='super_admin')
+         │
+         └─── Available Features:
+              - All Admin Features
+              - Admin Management
+              - Activity Logs
+              - System Settings
+
+
+6.2 Admin Workflows
+--------------------
+
+Job Management:
+- View pending jobs
+- Approve/Reject jobs
+- Refer jobseekers to jobs
+- View approved/rejected/completed jobs
+
+Employer Verification:
+- View pending employers
+- Approve/Reject/Suspend employers
+- View all employer statuses
+- Manage suspension duration
+
+User Management:
+- View all users
+- Manage user accounts
+- View user activity
+
+Analytics:
+- Job statistics
+- User statistics
+- Application statistics
+
+Key Files:
+- src/pages/Admin/JobManagementSimplified.jsx → Job management
+- src/pages/Admin/EmployerVerificationSimple.jsx → Employer verification
+- src/pages/Admin/UserManagement.jsx → User management
+- src/pages/Admin/AdminAnalytics.jsx → Analytics dashboard
+
+
+FLOW 7: Real-time Data Synchronization
+=======================================
+
+7.1 Real-time Subscriptions
+-----------------------------
+
+REAL-TIME DATA FLOW
+    │
+    └─── Supabase Realtime Subscriptions
+         │
+         ├─── useRealtimeData Hook
+         │    Subscribes to:
+         │    - jobs
+         │    - applications
+         │    - employer_profiles
+         │
+         └─── useRealtimeNotifications Hook
+              Subscribes to:
+              - notifications
+              - applications
+              - jobvacancypending
+              │
+              └─── UI Auto-Updates When Data Changes
+                   (No Page Refresh)
+
+Key Files:
+- src/hooks/useRealtimeData.js → Real-time data subscriptions
+- src/hooks/useRealtimeNotifications.js → Real-time notification updates
+
+Real-time Features:
+- Jobs update automatically
+- Applications update in real-time
+- Notifications appear instantly
+- Profile changes reflect immediately
+
+
+Database Schema Overview
+=========================
+
+Key Tables:
+1. jobseeker_profiles - Jobseeker information
+2. employer_profiles - Employer information + verification status
+3. admin_profiles - Admin information + role
+4. jobs - Approved job vacancies
+5. jobvacancypending - Pending job submissions
+6. applications - Job applications
+7. notifications - In-app notifications
+8. activity_logs - System activity tracking
+
+Key RPC Functions:
+1. create_employer_profile() - Creates employer profile on signup
+2. update_employer_verification_status() - Auto-updates verification status
+3. get_admin_emails_for_notifications() - Gets admin emails for notifications
+
+
+Deployment & Configuration
+============================
+
+Environment Setup:
+- Supabase Project URL & Keys
+- Email Service (Edge Functions)
+- SMS Service (TextBee/Twilio)
+- Storage Buckets Configuration
+- Realtime Enabled Tables
+
+Key Configuration Files:
+- src/supabase.js → Supabase client configuration
+- supabase/functions/send-email/ → Email Edge Function
+- supabase/functions/send-sms/ → SMS Edge Function
+- vercel.json → Deployment configuration
+
+
+Summary
+=======
+
+This PESDO Web Application provides a complete job matching platform with:
+
+1. User Management: Jobseeker, Employer, and Admin roles
+2. Verification System: Automated employer verification workflow
+3. Job Management: Submission, approval, and tracking
+4. Application System: Jobseeker applications and status tracking
+5. Notifications: Multi-channel (Email, SMS, In-App) notifications
+6. Real-time Updates: Live data synchronization
+7. Admin Oversight: Comprehensive management tools
+
+All flows are integrated with proper error handling, validation, and user feedback mechanisms.
+

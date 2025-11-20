@@ -282,6 +282,68 @@
   color: #ef4444;
 }
 
+.stat-card.suspended .stat-number {
+  color: #f97316;
+}
+
+/* Verification Tabs */
+.verification-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 0;
+  flex-wrap: wrap;
+}
+
+.verification-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: #64748b;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  margin-bottom: -2px;
+}
+
+.verification-tab:hover {
+  color: #005177;
+  background: #f8f9fa;
+}
+
+.verification-tab.active {
+  color: #005177;
+  border-bottom-color: #005177;
+  background: transparent;
+}
+
+.verification-tab.active:hover {
+  background: transparent;
+}
+
+.verification-tab .tab-count {
+  background: #e2e8f0;
+  color: #475569;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+}
+
+.verification-tab.active .tab-count {
+  background: #005177;
+  color: white;
+}
+
 /* Employers List */
 .employers-list {
   background: white;
@@ -468,6 +530,14 @@
   background: #ef4444;
 }
 
+.status-suspended {
+  background: #f97316;
+}
+
+.status-unverified {
+  background: #9ca3af;
+}
+
 .employer-details {
   margin-bottom: 20px;
 }
@@ -605,6 +675,28 @@
 .form-textarea {
   resize: vertical;
   min-height: 100px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.form-help-text {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-style: italic;
 }
 
 .document-links {

@@ -282,6 +282,7 @@ const EmployerDashboard = () => {
   const [profileSaving, setProfileSaving] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState('pending');
 
+  // Only approved employers can post jobs (not suspended, rejected, or pending)
   const isVerified = verificationStatus === 'approved';
 
   const [documentState, setDocumentState] = useState(defaultDocumentState);
@@ -486,7 +487,7 @@ const EmployerDashboard = () => {
 
       const { data, error } = await supabase
         .from('employer_profiles')
-        .select('*')
+        .select('*, suspension_duration_days, suspension_started_at, suspension_notes')
         .eq('id', employerId)
         .maybeSingle();
 
@@ -511,6 +512,10 @@ const EmployerDashboard = () => {
         contact_email: data?.contact_email || ''
       });
       setVerificationStatus(data?.verification_status || 'unverified');
+      // Store suspension info for display
+      if (data?.verification_status === 'suspended') {
+        // Suspension info is already in profile state
+      }
     } catch (error) {
       console.error('Error fetching employer profile:', error);
       setProfileError(error.message || 'Failed to load profile.');
@@ -977,6 +982,9 @@ const EmployerDashboard = () => {
     const config = DOCUMENT_CONFIG[type];
     if (!config) return;
 
+    // Store original status before any changes - used for comparison and logging
+    const originalStatus = profile?.verification_status || 'unverified';
+
     setDocumentFeedback(type, { uploading: true, success: '', error: '' });
 
     const extension = file.name.split('.').pop()?.toLowerCase() || 'pdf';
@@ -1001,35 +1009,218 @@ const EmployerDashboard = () => {
         data: { publicUrl }
       } = supabase.storage.from('files').getPublicUrl(filePath);
 
-      // Prepare update data
-      const updateData = {
-        [config.column]: publicUrl,
-        updated_at: new Date().toISOString()
-      };
-
-      // Check if both BIR and permit documents are uploaded
-      // Only update status if current status is 'unverified' (don't override admin decisions)
-      const currentStatus = profile?.verification_status || 'unverified';
-      const hasBir = type === 'bir' ? publicUrl : (profile?.bir_document_url || null);
-      const hasPermit = type === 'permit' ? publicUrl : (profile?.business_permit_url || null);
+      // STEP 1: First, update the document URL in the database
+      // This ensures the RPC function can see the new document when checking
+      const { error: docUpdateError, data: docUpdateData } = await supabase
+        .from('employer_profiles')
+        .update({
+          [config.column]: publicUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', employerId)
+        .select('bir_document_url, business_permit_url, verification_status')
+        .single();
       
-      // If both documents are uploaded and status is 'unverified', change to 'pending'
-      if (currentStatus === 'unverified' && hasBir && hasPermit) {
-        updateData.verification_status = 'pending';
+      // Verify the update was successful
+      if (!docUpdateData) {
+        throw new Error('Failed to update document URL - no data returned');
+      }
+      
+      if (docUpdateError) throw docUpdateError;
+
+      console.log('📄 Document URL saved to database:', {
+        type,
+        url: publicUrl,
+        current_status: docUpdateData?.verification_status,
+        has_bir: !!docUpdateData?.bir_document_url,
+        has_permit: !!docUpdateData?.business_permit_url,
+        bir_url: docUpdateData?.bir_document_url,
+        permit_url: docUpdateData?.business_permit_url
+      });
+
+      // STEP 2: For BIR or Permit documents, always call RPC function to update status
+      // The RPC function will check the database directly and handle status transitions correctly
+      // This ensures rejected -> pending works correctly when both documents are present
+      if (type === 'bir' || type === 'permit') {
+        // Add a small delay to ensure database transaction is committed
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Double-check database state before calling RPC
+        const { data: preRpcCheck, error: preRpcError } = await supabase
+          .from('employer_profiles')
+          .select('bir_document_url, business_permit_url, verification_status')
+          .eq('id', employerId)
+          .single();
+        
+        if (preRpcError) {
+          console.error('❌ Failed to verify document state before RPC:', preRpcError);
+        } else {
+          const hasBirPre = preRpcCheck?.bir_document_url && preRpcCheck.bir_document_url.trim() !== '';
+          const hasPermitPre = preRpcCheck?.business_permit_url && preRpcCheck.business_permit_url.trim() !== '';
+          console.log(`📄 Pre-RPC check (${type}):`, {
+            status: preRpcCheck?.verification_status,
+            has_bir: hasBirPre,
+            has_permit: hasPermitPre,
+            bir_url_length: preRpcCheck?.bir_document_url?.length || 0,
+            permit_url_length: preRpcCheck?.business_permit_url?.length || 0
+          });
+        }
+        
+        console.log(`📄 Calling RPC to update status after ${type} upload...`);
+        const { error: rpcError, data: rpcData } = await supabase.rpc('update_employer_verification_status', {
+          p_employer_id: employerId
+        });
+        
+        if (rpcError) {
+          console.warn('⚠️ RPC status update failed, using fallback logic:', rpcError);
+          
+          // Fallback: Fetch current state from database to get accurate document status
+          const { data: currentProfile, error: fetchCurrentError } = await supabase
+            .from('employer_profiles')
+            .select('bir_document_url, business_permit_url, verification_status')
+            .eq('id', employerId)
+            .single();
+          
+          if (fetchCurrentError) {
+            console.error('❌ Failed to fetch current profile for fallback:', fetchCurrentError);
+            throw fetchCurrentError;
+          }
+          
+          if (currentProfile) {
+            const hasBir = currentProfile.bir_document_url && currentProfile.bir_document_url.trim() !== '';
+            const hasPermit = currentProfile.business_permit_url && currentProfile.business_permit_url.trim() !== '';
+            const currentStatus = currentProfile.verification_status || 'unverified';
+            
+            console.log('🔍 Fallback check:', { hasBir, hasPermit, currentStatus });
+            
+            // Only update if status allows and both documents are present
+            if ((currentStatus === 'unverified' || currentStatus === 'rejected') && hasBir && hasPermit) {
+              console.log('✅ Updating status via fallback: rejected/unverified → pending');
+              const { error: updateError } = await supabase
+                .from('employer_profiles')
+                .update({
+                  verification_status: 'pending',
+                  verification_notes: null, // Clear previous rejection notes
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', employerId);
+              if (updateError) {
+                console.error('❌ Fallback status update failed:', updateError);
+                throw updateError;
+              }
+            } else if (currentStatus === 'pending' && (!hasBir || !hasPermit)) {
+              // If status is pending and a document is missing, revert to unverified
+              console.log('⚠️ Reverting status via fallback: pending → unverified (missing documents)');
+              const { error: updateError } = await supabase
+                .from('employer_profiles')
+                .update({
+                  verification_status: 'unverified',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', employerId);
+              if (updateError) {
+                console.error('❌ Fallback status revert failed:', updateError);
+                throw updateError;
+              }
+            }
+          }
+        } else {
+          console.log('✅ RPC status update succeeded');
+          
+          // Wait a bit for RPC to complete, then check if status was actually updated
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Verify the RPC actually updated the status
+          const { data: postRpcCheck, error: postRpcError } = await supabase
+            .from('employer_profiles')
+            .select('bir_document_url, business_permit_url, verification_status')
+            .eq('id', employerId)
+            .single();
+          
+          if (!postRpcError && postRpcCheck) {
+            const hasBirPost = postRpcCheck.bir_document_url && postRpcCheck.bir_document_url.trim() !== '';
+            const hasPermitPost = postRpcCheck.business_permit_url && postRpcCheck.business_permit_url.trim() !== '';
+            
+            // If RPC succeeded but status is still 'rejected' with both documents, force update
+            if (postRpcCheck.verification_status === 'rejected' && hasBirPost && hasPermitPost) {
+              console.log('⚠️ RPC succeeded but status still rejected - forcing direct update');
+              const { error: forceUpdateError } = await supabase
+                .from('employer_profiles')
+                .update({
+                  verification_status: 'pending',
+                  verification_notes: null,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', employerId);
+              
+              if (forceUpdateError) {
+                console.error('❌ Force update failed:', forceUpdateError);
+              } else {
+                console.log('✅ Force update succeeded - status changed to pending');
+              }
+            }
+          }
+        }
       }
 
-      const { error: updateError } = await supabase
+      // STEP 3: Re-fetch profile to get updated status (RPC function may have changed it)
+      const { data: updatedProfile, error: fetchError } = await supabase
         .from('employer_profiles')
-        .update(updateData)
-        .eq('id', employerId);
+        .select('verification_status, bir_document_url, business_permit_url, verification_notes')
+        .eq('id', employerId)
+        .single();
+      
+      if (fetchError) {
+        console.error('❌ Failed to fetch updated profile:', fetchError);
+      } else {
+        console.log('📊 Profile after document upload:', {
+          verification_status: updatedProfile?.verification_status,
+          has_bir: !!updatedProfile?.bir_document_url,
+          has_permit: !!updatedProfile?.business_permit_url,
+          original_status: originalStatus,
+          status_changed: originalStatus !== updatedProfile?.verification_status
+        });
+      }
 
-      if (updateError) throw updateError;
-
+      // Update profile state with new document URL and status
+      const newStatusFromDB = updatedProfile?.verification_status || profile?.verification_status || originalStatus;
+      console.log(`🔄 Updating profile state: ${profile?.verification_status || 'unknown'} → ${newStatusFromDB}`);
+      
       setProfile((prev) => ({
         ...prev,
         [config.column]: publicUrl,
-        ...(updateData.verification_status ? { verification_status: updateData.verification_status } : {})
+        verification_status: newStatusFromDB,
+        bir_document_url: updatedProfile?.bir_document_url || prev?.bir_document_url,
+        business_permit_url: updatedProfile?.business_permit_url || prev?.business_permit_url,
+        verification_notes: updatedProfile?.verification_notes || prev?.verification_notes
       }));
+
+      // Update verification status in state - this is what the UI badge reads from
+      // Always update if we have a new status from the database
+      if (newStatusFromDB && newStatusFromDB !== verificationStatus) {
+        console.log(`🔄 Updating verificationStatus state: ${verificationStatus} → ${newStatusFromDB}`);
+        setVerificationStatus(newStatusFromDB);
+      } else if (newStatusFromDB) {
+        console.log(`ℹ️ VerificationStatus state unchanged: ${verificationStatus} (database: ${newStatusFromDB})`);
+      }
+
+      // If status changed from rejected to pending, log it for debugging
+      if (originalStatus === 'rejected' && newStatusFromDB === 'pending') {
+        console.log('✅ Status successfully changed from rejected to pending!');
+        // Force a full profile refresh to ensure UI updates
+        setTimeout(() => {
+          fetchProfile();
+        }, 500);
+      } else if (originalStatus === 'rejected' && newStatusFromDB !== 'pending') {
+        console.warn(`⚠️ Status is still 'rejected' after uploading both documents. Expected 'pending'. Current status: ${newStatusFromDB}`);
+        console.warn('⚠️ Debug info:', {
+          updatedProfile_status: updatedProfile?.verification_status,
+          profile_status: profile?.verification_status,
+          originalStatus,
+          has_bir: !!updatedProfile?.bir_document_url,
+          has_permit: !!updatedProfile?.business_permit_url
+        });
+      }
 
       setDocumentSelection((prev) => ({ ...prev, [type]: null }));
 
@@ -1066,9 +1257,25 @@ const EmployerDashboard = () => {
         });
       }
 
+      // Show appropriate success message based on status change
+      const finalStatusForMessage = updatedProfile?.verification_status || originalStatus;
+      let successMessage = `${config.label} uploaded successfully.`;
+      
+      if (finalStatusForMessage === 'pending' && originalStatus === 'rejected') {
+        successMessage = `${config.label} uploaded successfully. Your documents have been resubmitted for review.`;
+      } else if (finalStatusForMessage === 'pending' && originalStatus === 'unverified') {
+        const otherDocType = type === 'bir' ? 'Business Permit' : 'BIR Document';
+        const hasOtherDoc = type === 'bir' ? (updatedProfile?.business_permit_url || hasPermit) : (updatedProfile?.bir_document_url || hasBir);
+        if (hasOtherDoc) {
+          successMessage = `${config.label} uploaded successfully. Both documents are now complete. Your verification request has been submitted for review.`;
+        } else {
+          successMessage = `${config.label} uploaded successfully. Please upload your ${otherDocType} to complete your verification request.`;
+        }
+      }
+
       setDocumentFeedback(type, {
         uploading: false,
-        success: `${config.label} uploaded successfully.`,
+        success: successMessage,
         error: ''
       });
     } catch (error) {
@@ -1840,11 +2047,26 @@ const EmployerDashboard = () => {
       <section>
         <h2>Submit a Job Vacancy</h2>
         <p className="section-subtitle">
-          Provide the role’s details. All approved vacancies appear to jobseekers once reviewed by PESDO.
+          Provide the role's details. All approved vacancies appear to jobseekers once reviewed by PESDO.
         </p>
         {isVerified ? null : (
-          <div className="form-message warning">
-            Your account must be verified before you can submit job vacancies.
+          <div className={`form-message ${verificationStatus === 'suspended' ? 'error' : 'warning'}`}>
+            {verificationStatus === 'suspended' ? (
+              <>
+                <strong>⛔ Your account has been suspended.</strong>
+                {profile?.suspension_duration_days ? (
+                  <p>Your suspension will last for {profile.suspension_duration_days} day{profile.suspension_duration_days !== 1 ? 's' : ''}.</p>
+                ) : (
+                  <p>Your suspension is indefinite until manually reinstated by an administrator.</p>
+                )}
+                {profile?.suspension_notes && (
+                  <p><strong>Reason:</strong> {profile.suspension_notes}</p>
+                )}
+                <p>You cannot post new job vacancies while your account is suspended.</p>
+              </>
+            ) : (
+              'Your account must be verified before you can submit job vacancies.'
+            )}
           </div>
         )}
         <h3 className="section-title">Position Details</h3>

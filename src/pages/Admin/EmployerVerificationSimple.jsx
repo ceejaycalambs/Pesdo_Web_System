@@ -19,15 +19,19 @@ const EmployerVerificationSimple = () => {
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [verificationNotes, setVerificationNotes] = useState('');
   const [verificationStatus, setVerificationStatus] = useState('pending');
+  const [suspensionDuration, setSuspensionDuration] = useState('');
+  const [suspensionNotes, setSuspensionNotes] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('pending'); // 'pending', 'approved', 'rejected', 'suspended', 'all'
   const [adminRole, setAdminRole] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
     approved: 0,
-    rejected: 0
+    rejected: 0,
+    suspended: 0
   });
 
   // Realtime notifications
@@ -52,7 +56,7 @@ const EmployerVerificationSimple = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('employer_profiles')
-        .select('*')
+        .select('*, suspension_duration_days, suspension_started_at, suspension_notes')
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -63,11 +67,12 @@ const EmployerVerificationSimple = () => {
       
       // Calculate stats - handle null verification_status
       const total = employersData.length;
-      const pending = employersData.filter(emp => !emp.verification_status || emp.verification_status === 'pending').length;
+      const pending = employersData.filter(emp => !emp.verification_status || emp.verification_status === 'pending' || emp.verification_status === 'unverified').length;
       const approved = employersData.filter(emp => emp.verification_status === 'approved').length;
       const rejected = employersData.filter(emp => emp.verification_status === 'rejected').length;
+      const suspended = employersData.filter(emp => emp.verification_status === 'suspended').length;
       
-      setStats({ total, pending, approved, rejected });
+      setStats({ total, pending, approved, rejected, suspended });
     } catch (error) {
       console.error('Error fetching employers:', error);
     } finally {
@@ -93,6 +98,30 @@ const EmployerVerificationSimple = () => {
       // Only add verified_at if status is approved
       if (verificationStatus === 'approved') {
         updateData.verified_at = new Date().toISOString();
+        // Clear suspension fields when approving
+        updateData.suspension_duration_days = null;
+        updateData.suspension_started_at = null;
+        updateData.suspension_notes = null;
+      } else if (verificationStatus === 'suspended') {
+        // Set suspension fields
+        updateData.suspension_started_at = new Date().toISOString();
+        updateData.suspension_notes = suspensionNotes || null;
+        // Set duration (null = indefinite)
+        if (suspensionDuration && suspensionDuration.trim() !== '') {
+          const days = parseInt(suspensionDuration, 10);
+          if (!isNaN(days) && days > 0) {
+            updateData.suspension_duration_days = days;
+          } else {
+            updateData.suspension_duration_days = null; // Invalid input = indefinite
+          }
+        } else {
+          updateData.suspension_duration_days = null; // Empty = indefinite
+        }
+      } else {
+        // Clear suspension fields for other statuses
+        updateData.suspension_duration_days = null;
+        updateData.suspension_started_at = null;
+        updateData.suspension_notes = null;
       }
 
       console.log('📤 Update data:', updateData);
@@ -123,14 +152,22 @@ const EmployerVerificationSimple = () => {
           ? `${adminProfile.first_name || ''} ${adminProfile.last_name || ''}`.trim() || adminProfile.username || adminProfile.email || 'Admin'
           : 'Admin';
         
-        const actionType = verificationStatus === 'approved' ? 'employer_verified' : 
-                          verificationStatus === 'rejected' ? 'employer_rejected' : 
-                          'employer_verification_updated';
-        const actionDescription = verificationStatus === 'approved' 
-          ? `${adminName} verified employer: ${selectedEmployer.business_name || selectedEmployer.email}`
-          : verificationStatus === 'rejected'
-          ? `${adminName} rejected employer verification: ${selectedEmployer.business_name || selectedEmployer.email}`
-          : `${adminName} updated employer verification status to ${verificationStatus}`;
+        let actionType;
+        let actionDescription;
+        
+        if (verificationStatus === 'approved') {
+          actionType = 'employer_verified';
+          actionDescription = `${adminName} verified employer: ${selectedEmployer.business_name || selectedEmployer.email}`;
+        } else if (verificationStatus === 'rejected') {
+          actionType = 'employer_rejected';
+          actionDescription = `${adminName} rejected employer verification: ${selectedEmployer.business_name || selectedEmployer.email}`;
+        } else if (verificationStatus === 'suspended') {
+          actionType = 'employer_suspended';
+          actionDescription = `${adminName} suspended employer: ${selectedEmployer.business_name || selectedEmployer.email}`;
+        } else {
+          actionType = 'employer_verification_updated';
+          actionDescription = `${adminName} updated employer verification status to ${verificationStatus}`;
+        }
 
         await logActivity({
           userId: currentUser.id,
@@ -150,21 +187,41 @@ const EmployerVerificationSimple = () => {
       }
 
       // Create notification for employer about verification update
-      if (verificationStatus === 'approved' || verificationStatus === 'rejected') {
+      if (verificationStatus === 'approved' || verificationStatus === 'rejected' || verificationStatus === 'suspended') {
         try {
           const isApproved = verificationStatus === 'approved';
-          const notesText = !isApproved && verificationNotes ? ` Notes: ${verificationNotes}` : '';
-          const notificationMessage = isApproved
-            ? '🎉 Your employer account has been approved. You can now post job vacancies.'
-            : `⚠️ Your employer verification status is now REJECTED.${notesText}`;
+          const isRejected = verificationStatus === 'rejected';
+          const isSuspended = verificationStatus === 'suspended';
+          // For suspended, use suspension notes; for rejected, use verification notes
+          const notesText = isSuspended 
+            ? (suspensionNotes ? ` Notes: ${suspensionNotes}` : '')
+            : (isRejected && verificationNotes ? ` Notes: ${verificationNotes}` : '');
+          
+          let notificationMessage;
+          let notificationType;
+          let notificationTitle;
+          
+          if (isApproved) {
+            notificationMessage = '🎉 Your employer account has been approved. You can now post job vacancies.';
+            notificationType = 'employer_verification_approved';
+            notificationTitle = 'Employer Verification Approved';
+          } else if (isRejected) {
+            notificationMessage = `⚠️ Your employer verification status is now REJECTED.${notesText}`;
+            notificationType = 'employer_verification_rejected';
+            notificationTitle = 'Employer Verification Update';
+          } else if (isSuspended) {
+            notificationMessage = `⛔ Your employer account has been SUSPENDED. You cannot post new job vacancies until your account is reinstated.${notesText}`;
+            notificationType = 'employer_verification_suspended';
+            notificationTitle = 'Account Suspended';
+          }
 
           await supabase
             .from('notifications')
             .insert([
               {
                 employer_id: selectedEmployer.id,
-                type: isApproved ? 'employer_verification_approved' : 'employer_verification_rejected',
-                title: isApproved ? 'Employer Verification Approved' : 'Employer Verification Update',
+                type: notificationType,
+                title: notificationTitle,
                 message: notificationMessage,
                 is_read: false,
                 created_at: new Date().toISOString()
@@ -176,7 +233,7 @@ const EmployerVerificationSimple = () => {
       }
 
       // Send SMS and Email notifications to employer (non-blocking)
-      if (verificationStatus === 'approved' || verificationStatus === 'rejected') {
+      if (verificationStatus === 'approved' || verificationStatus === 'rejected' || verificationStatus === 'suspended') {
         try {
           const { data: employerProfile } = await supabase
             .from('employer_profiles')
@@ -190,9 +247,18 @@ const EmployerVerificationSimple = () => {
 
             // Send SMS if mobile number is available
             if (employerProfile.mobile_number) {
-              const message = verificationStatus === 'approved'
-                ? `Hi ${employerName}! Your employer account has been APPROVED. You can now post job vacancies. - PESDO`
-                : `Hi ${employerName}! Your verification was REJECTED. Check dashboard for details. - PESDO`;
+              let message;
+              if (verificationStatus === 'approved') {
+                message = `Hi ${employerName}! Your employer account has been APPROVED. You can now post job vacancies. - PESDO`;
+              } else if (verificationStatus === 'rejected') {
+                message = `Hi ${employerName}! Your verification was REJECTED. Check dashboard for details. - PESDO`;
+              } else if (verificationStatus === 'suspended') {
+                const durationText = suspensionDuration && suspensionDuration.trim() !== '' 
+                  ? ` for ${suspensionDuration} day${parseInt(suspensionDuration) !== 1 ? 's' : ''}`
+                  : ' (indefinite)';
+                const notesText = suspensionNotes ? ` Reason: ${suspensionNotes.substring(0, 100)}${suspensionNotes.length > 100 ? '...' : ''}` : '';
+                message = `Hi ${employerName}! Your account has been SUSPENDED${durationText}.${notesText} Check dashboard for details. - PESDO`;
+              }
 
               sendSMS({
                 to: employerProfile.mobile_number,
@@ -206,11 +272,21 @@ const EmployerVerificationSimple = () => {
 
             // Send Email if email is available
             if (employerEmail) {
+              // For suspended status, use suspension notes; otherwise use verification notes
+              const emailNotes = verificationStatus === 'suspended' 
+                ? suspensionNotes || null 
+                : verificationNotes || null;
+              
+              const suspensionDays = verificationStatus === 'suspended' && suspensionDuration && suspensionDuration.trim() !== ''
+                ? parseInt(suspensionDuration, 10)
+                : null;
+              
               sendEmployerVerificationEmail(
                 employerEmail,
                 employerName,
                 verificationStatus,
-                verificationNotes || null
+                emailNotes,
+                suspensionDays
               ).then(() => {
                 console.log('✅ Email notification sent to employer');
               }).catch((emailError) => {
@@ -232,6 +308,8 @@ const EmployerVerificationSimple = () => {
       setSelectedEmployer(null);
       setVerificationNotes('');
       setVerificationStatus('pending');
+      setSuspensionDuration('');
+      setSuspensionNotes('');
       
       // Show success notification
       setNotification({
@@ -302,40 +380,55 @@ const EmployerVerificationSimple = () => {
     }
   };
 
-  // Filter employers based on search term
+  // Filter employers based on search term and status filter
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredEmployers(employers);
-      return;
+    let filtered = employers;
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(employer => {
+        const status = employer.verification_status || 'unverified';
+        if (statusFilter === 'pending') {
+          // Include unverified and pending
+          return !status || status === 'pending' || status === 'unverified';
+        }
+        return status === statusFilter;
+      });
     }
 
-    const searchLower = searchTerm.toLowerCase().trim();
-    const filtered = employers.filter(employer => {
-      const businessName = (employer.business_name || '').toLowerCase();
-      const email = (employer.email || '').toLowerCase();
-      const contactPerson = (employer.contact_person_name || '').toLowerCase();
-      const acronym = (employer.acronym || '').toLowerCase();
-      const establishmentType = (employer.establishment_type || '').toLowerCase();
-      const contactEmail = (employer.contact_email || '').toLowerCase();
-      
-      return (
-        businessName.includes(searchLower) ||
-        email.includes(searchLower) ||
-        contactPerson.includes(searchLower) ||
-        acronym.includes(searchLower) ||
-        establishmentType.includes(searchLower) ||
-        contactEmail.includes(searchLower)
-      );
-    });
+    // Apply search term filter
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(employer => {
+        const businessName = (employer.business_name || '').toLowerCase();
+        const email = (employer.email || '').toLowerCase();
+        const contactPerson = (employer.contact_person_name || '').toLowerCase();
+        const acronym = (employer.acronym || '').toLowerCase();
+        const establishmentType = (employer.establishment_type || '').toLowerCase();
+        const contactEmail = (employer.contact_email || '').toLowerCase();
+        
+        return (
+          businessName.includes(searchLower) ||
+          email.includes(searchLower) ||
+          contactPerson.includes(searchLower) ||
+          acronym.includes(searchLower) ||
+          establishmentType.includes(searchLower) ||
+          contactEmail.includes(searchLower)
+        );
+      });
+    }
 
     setFilteredEmployers(filtered);
-  }, [searchTerm, employers]);
+  }, [searchTerm, employers, statusFilter]);
 
   const getStatusBadge = (status) => {
     const statusConfig = {
+      unverified: { class: 'status-unverified', text: '🔴 Unverified', color: '#9ca3af' },
       pending: { class: 'status-pending', text: '⏳ Pending', color: '#f59e0b' },
+      under_review: { class: 'status-under-review', text: '🔍 Under Review', color: '#3b82f6' },
       approved: { class: 'status-approved', text: '✅ Approved', color: '#10b981' },
-      rejected: { class: 'status-rejected', text: '❌ Rejected', color: '#ef4444' }
+      rejected: { class: 'status-rejected', text: '❌ Rejected', color: '#ef4444' },
+      suspended: { class: 'status-suspended', text: '⛔ Suspended', color: '#f97316' }
     };
     
     const config = statusConfig[status] || statusConfig.pending;
@@ -442,12 +535,73 @@ const EmployerVerificationSimple = () => {
           <h3>Rejected</h3>
           <div className="stat-number">{stats.rejected}</div>
         </div>
+        <div className="stat-card suspended">
+          <h3>Suspended</h3>
+          <div className="stat-number">{stats.suspended}</div>
+        </div>
+      </div>
+
+      {/* Status Tabs */}
+      <div className="verification-tabs">
+        <button
+          type="button"
+          className={`verification-tab ${statusFilter === 'pending' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('pending')}
+        >
+          <span>⏳ Pending Review</span>
+          {stats.pending > 0 && (
+            <span className="tab-count">{stats.pending}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          className={`verification-tab ${statusFilter === 'approved' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('approved')}
+        >
+          <span>✅ Verified</span>
+          {stats.approved > 0 && (
+            <span className="tab-count">{stats.approved}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          className={`verification-tab ${statusFilter === 'rejected' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('rejected')}
+        >
+          <span>❌ Rejected</span>
+          {stats.rejected > 0 && (
+            <span className="tab-count">{stats.rejected}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          className={`verification-tab ${statusFilter === 'suspended' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('suspended')}
+        >
+          <span>⛔ Suspended</span>
+          {stats.suspended > 0 && (
+            <span className="tab-count">{stats.suspended}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          className={`verification-tab ${statusFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('all')}
+        >
+          <span>📋 All Employers</span>
+        </button>
       </div>
 
       {/* Employers List - Table View for Admin Efficiency */}
       <div className="employers-list">
         <div className="employers-list-header">
-          <h2>Employers Awaiting Verification</h2>
+          <h2>
+            {statusFilter === 'pending' && 'Employers Awaiting Verification'}
+            {statusFilter === 'approved' && 'Verified Employers'}
+            {statusFilter === 'rejected' && 'Rejected Employers'}
+            {statusFilter === 'suspended' && 'Suspended Employers'}
+            {statusFilter === 'all' && 'All Employers'}
+          </h2>
           <div className="search-container">
             <input
               type="text"
@@ -472,13 +626,27 @@ const EmployerVerificationSimple = () => {
           <div className="no-results">
             <div className="no-results-icon">🔍</div>
             <h3>No results found</h3>
-            <p>No employers match your search term "{searchTerm}"</p>
-            <button 
-              className="btn-secondary"
-              onClick={() => setSearchTerm('')}
-            >
-              Clear Search
-            </button>
+            <p>
+              {searchTerm 
+                ? `No employers match your search term "${searchTerm}"`
+                : statusFilter === 'pending' 
+                  ? 'No employers are currently awaiting verification.'
+                  : statusFilter === 'approved'
+                  ? 'No employers have been verified yet.'
+                  : statusFilter === 'rejected'
+                  ? 'No employers have been rejected.'
+                  : statusFilter === 'suspended'
+                  ? 'No employers are currently suspended.'
+                  : 'No employers found.'}
+            </p>
+            {searchTerm && (
+              <button 
+                className="btn-secondary"
+                onClick={() => setSearchTerm('')}
+              >
+                Clear Search
+              </button>
+            )}
           </div>
         ) : employers.length === 0 ? (
           <div className="no-employers">
@@ -552,7 +720,19 @@ const EmployerVerificationSimple = () => {
                       </div>
                     </td>
                     <td className="status">
-                      {getStatusBadge(employer.verification_status || 'pending')}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {getStatusBadge(employer.verification_status || 'pending')}
+                        {employer.verification_status === 'suspended' && employer.suspension_duration_days && (
+                          <small style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                            {employer.suspension_duration_days} day{employer.suspension_duration_days !== 1 ? 's' : ''}
+                          </small>
+                        )}
+                        {employer.verification_status === 'suspended' && !employer.suspension_duration_days && (
+                          <small style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                            Indefinite
+                          </small>
+                        )}
+                      </div>
                     </td>
                     <td className="registered-date">
                       {new Date(employer.created_at).toLocaleDateString()}
@@ -593,22 +773,99 @@ const EmployerVerificationSimple = () => {
                     onChange={(e) => setVerificationStatus(e.target.value)}
                     className="form-select"
                   >
-                    <option value="pending">⏳ Pending</option>
-                    <option value="approved">✅ Approved</option>
-                    <option value="rejected">❌ Rejected</option>
+                    {(() => {
+                      const currentStatus = selectedEmployer?.verification_status || 'pending';
+                      const isApproved = currentStatus === 'approved';
+                      const isSuspended = currentStatus === 'suspended';
+                      const isPending = !currentStatus || currentStatus === 'pending' || currentStatus === 'unverified';
+                      
+                      // Show different options based on current status
+                      if (isPending) {
+                        // For pending/unverified: can approve or reject
+                        return (
+                          <>
+                            <option value="pending">⏳ Pending</option>
+                            <option value="approved">✅ Approve</option>
+                            <option value="rejected">❌ Reject</option>
+                          </>
+                        );
+                      } else if (isApproved) {
+                        // For approved: can suspend (not reject)
+                        return (
+                          <>
+                            <option value="approved">✅ Approved</option>
+                            <option value="suspended">⛔ Suspend</option>
+                          </>
+                        );
+                      } else if (isSuspended) {
+                        // For suspended: can unsuspend (back to approved)
+                        return (
+                          <>
+                            <option value="suspended">⛔ Suspended</option>
+                            <option value="approved">✅ Unsuspend (Approve)</option>
+                          </>
+                        );
+                      } else {
+                        // For rejected: can approve (re-verify)
+                        return (
+                          <>
+                            <option value="rejected">❌ Rejected</option>
+                            <option value="pending">⏳ Move to Pending</option>
+                            <option value="approved">✅ Approve</option>
+                          </>
+                        );
+                      }
+                    })()}
                   </select>
                 </div>
 
-                <div className="form-group">
-                  <label>Verification Notes</label>
-                  <textarea
-                    value={verificationNotes}
-                    onChange={(e) => setVerificationNotes(e.target.value)}
-                    className="form-textarea"
-                    rows="4"
-                    placeholder="Add notes about the verification decision..."
-                  />
-                </div>
+                {/* Verification Notes - hide when suspended (use Suspension Notes instead) */}
+                {verificationStatus !== 'suspended' && (
+                  <div className="form-group">
+                    <label>Verification Notes</label>
+                    <textarea
+                      value={verificationNotes}
+                      onChange={(e) => setVerificationNotes(e.target.value)}
+                      className="form-textarea"
+                      rows="4"
+                      placeholder="Add notes about the verification decision..."
+                    />
+                  </div>
+                )}
+
+                {/* Suspension-specific fields - only show when suspending */}
+                {verificationStatus === 'suspended' && (
+                  <>
+                    <div className="form-group">
+                      <label>Suspension Duration (Days)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={suspensionDuration}
+                        onChange={(e) => setSuspensionDuration(e.target.value)}
+                        className="form-input"
+                        placeholder="Leave empty for indefinite suspension"
+                      />
+                      <small className="form-help-text">
+                        Enter number of days (e.g., 7, 30, 90). Leave empty for indefinite suspension.
+                      </small>
+                    </div>
+                    <div className="form-group">
+                      <label>Suspension Notes *</label>
+                      <textarea
+                        value={suspensionNotes}
+                        onChange={(e) => setSuspensionNotes(e.target.value)}
+                        className="form-textarea"
+                        rows="4"
+                        placeholder="Explain why this employer is being suspended (required)..."
+                        required
+                      />
+                      <small className="form-help-text">
+                        This note will be shared with the employer via email and SMS.
+                      </small>
+                    </div>
+                  </>
+                )}
 
                 <div className="document-links">
                   <h4>Review Documents:</h4>
@@ -644,7 +901,7 @@ const EmployerVerificationSimple = () => {
               <button 
                 className="btn-primary"
                 onClick={handleVerification}
-                disabled={isUpdating}
+                disabled={isUpdating || (verificationStatus === 'suspended' && !suspensionNotes.trim())}
               >
                 {isUpdating ? (
                   <>

@@ -282,8 +282,10 @@ export const sendNewApplicationEmail = async (email, employerName, jobseekerName
 };
 
 // Employer verification notification
-export const sendEmployerVerificationEmail = async (email, employerName, status, rejectionReason = null) => {
+export const sendEmployerVerificationEmail = async (email, employerName, status, rejectionReason = null, suspensionDays = null) => {
   const isApproved = status === 'approved';
+  const isRejected = status === 'rejected';
+  const isSuspended = status === 'suspended';
   const html = `
     <!DOCTYPE html>
     <html>
@@ -294,16 +296,17 @@ export const sendEmployerVerificationEmail = async (email, employerName, status,
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background: linear-gradient(135deg, #005177, #0079a1); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
         .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }
-        .button { display: inline-block; background: ${isApproved ? '#10b981' : '#005177'}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+        .button { display: inline-block; background: ${isApproved ? '#10b981' : isSuspended ? '#f97316' : '#005177'}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px; }
         .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
         .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
         .success { background: #d1f2eb; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .suspended { background: #ffe5d4; border-left: 4px solid #f97316; padding: 15px; margin: 20px 0; border-radius: 4px; }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="header">
-          <h1>${isApproved ? '✅ Account Verification Approved' : '⚠️ Account Verification Update'}</h1>
+          <h1>${isApproved ? '✅ Account Verification Approved' : isSuspended ? '⛔ Account Suspended' : '⚠️ Account Verification Update'}</h1>
         </div>
         <div class="content">
           <p>Hi ${employerName},</p>
@@ -318,6 +321,15 @@ export const sendEmployerVerificationEmail = async (email, employerName, status,
                  </ul>
                </div>
                <p>Start by posting your first job vacancy and connecting with qualified candidates.</p>`
+            : isSuspended
+            ? `<div class="suspended">
+                 <p>Your employer account has been <strong>SUSPENDED</strong>.</p>
+                 ${suspensionDays ? `<p><strong>Duration:</strong> ${suspensionDays} day${suspensionDays !== 1 ? 's' : ''}</p>` : '<p><strong>Duration:</strong> Indefinite (until manually reinstated)</p>'}
+                 ${rejectionReason ? `<p><strong>Reason:</strong> ${rejectionReason}</p>` : '<p>Please check your dashboard for more details.</p>'}
+                 <p><strong>Important:</strong> You cannot post new job vacancies while your account is suspended. Existing job postings may also be affected.</p>
+                 ${suspensionDays ? `<p>Your suspension will automatically expire after ${suspensionDays} day${suspensionDays !== 1 ? 's' : ''}. You will be notified when your account is reinstated.</p>` : ''}
+               </div>
+               <p>If you believe this is an error or have questions, please contact PESDO support for assistance.</p>`
             : `<div class="warning">
                  <p>Your employer account verification has been <strong>REJECTED</strong>.</p>
                  ${rejectionReason ? `<p><strong>Reason:</strong> ${rejectionReason}</p>` : '<p>Please check your dashboard for more details.</p>'}
