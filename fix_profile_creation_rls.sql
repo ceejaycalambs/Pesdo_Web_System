@@ -86,6 +86,7 @@ BEGIN
         email,
         usertype,
         business_name,
+        verification_status,
         created_at,
         updated_at
     )
@@ -94,6 +95,7 @@ BEGIN
         p_email,
         'employer',
         p_business_name,
+        'unverified',
         now(),
         now()
     )

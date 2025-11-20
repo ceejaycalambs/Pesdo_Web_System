@@ -507,7 +507,7 @@ const EmployerDashboard = () => {
         fax_number: data?.fax_number || '',
         contact_email: data?.contact_email || ''
       });
-      setVerificationStatus(data?.verification_status || 'pending');
+      setVerificationStatus(data?.verification_status || 'unverified');
     } catch (error) {
       console.error('Error fetching employer profile:', error);
       setProfileError(error.message || 'Failed to load profile.');
@@ -906,16 +906,38 @@ const EmployerDashboard = () => {
         await deleteStorageFile(currentUrl);
       }
 
+      // Prepare update data
+      const updateData = {
+        [config.column]: null,
+        updated_at: new Date().toISOString()
+      };
+
+      // Check if removing a required document (BIR or permit)
+      // If removing and status is 'pending', revert to 'unverified'
+      // Only revert if status is 'pending' (don't override admin decisions like 'approved' or 'rejected')
+      const currentStatus = profile?.verification_status || 'unverified';
+      if ((type === 'bir' || type === 'permit') && currentStatus === 'pending') {
+        // Check if the other required document is still present
+        const hasBir = type === 'bir' ? null : (profile?.bir_document_url || null);
+        const hasPermit = type === 'permit' ? null : (profile?.business_permit_url || null);
+        
+        // If both documents won't be present after removal, revert to 'unverified'
+        if (!hasBir || !hasPermit) {
+          updateData.verification_status = 'unverified';
+        }
+      }
+
       const { error } = await supabase
         .from('employer_profiles')
-        .update({ [config.column]: null, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', employerId);
 
       if (error) throw error;
 
       setProfile((prev) => ({
         ...prev,
-        [config.column]: null
+        [config.column]: null,
+        ...(updateData.verification_status ? { verification_status: updateData.verification_status } : {})
       }));
 
       setDocumentSelection((prev) => ({ ...prev, [type]: null }));
@@ -976,16 +998,34 @@ const EmployerDashboard = () => {
         data: { publicUrl }
       } = supabase.storage.from('files').getPublicUrl(filePath);
 
+      // Prepare update data
+      const updateData = {
+        [config.column]: publicUrl,
+        updated_at: new Date().toISOString()
+      };
+
+      // Check if both BIR and permit documents are uploaded
+      // Only update status if current status is 'unverified' (don't override admin decisions)
+      const currentStatus = profile?.verification_status || 'unverified';
+      const hasBir = type === 'bir' ? publicUrl : (profile?.bir_document_url || null);
+      const hasPermit = type === 'permit' ? publicUrl : (profile?.business_permit_url || null);
+      
+      // If both documents are uploaded and status is 'unverified', change to 'pending'
+      if (currentStatus === 'unverified' && hasBir && hasPermit) {
+        updateData.verification_status = 'pending';
+      }
+
       const { error: updateError } = await supabase
         .from('employer_profiles')
-        .update({ [config.column]: publicUrl, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', employerId);
 
       if (updateError) throw updateError;
 
       setProfile((prev) => ({
         ...prev,
-        [config.column]: publicUrl
+        [config.column]: publicUrl,
+        ...(updateData.verification_status ? { verification_status: updateData.verification_status } : {})
       }));
 
       setDocumentSelection((prev) => ({ ...prev, [type]: null }));
