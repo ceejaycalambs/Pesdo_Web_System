@@ -62,7 +62,7 @@
   align-items: center;
   gap: 8px;
   background: linear-gradient(135deg, #005177, #0079a1);
-  color: white;
+  color: white !important;
   padding: 8px 16px;
   border-radius: 20px;
   font-size: 0.9rem;
@@ -72,18 +72,22 @@
 
 .login-type-badge.jobseeker {
   background: linear-gradient(135deg, #005177, #0079a1);
+  color: white !important;
 }
 
 .login-type-badge.employer {
   background: linear-gradient(135deg, #0079a1, #005177);
+  color: white !important;
 }
 
 .badge-icon {
   font-size: 1rem;
+  color: white !important;
 }
 
 .badge-text {
   font-size: 0.85rem;
+  color: white !important;
 }
 
 /* Login form */
@@ -664,18 +668,20 @@
   }
 }
 
-/* Login Type Badge */
+/* Login Type Badge - Override for white text */
 .login-type-badge {
-  display: inline-block;
-  margin-right: 8px;
-  font-size: 1.2rem;
-  vertical-align: middle;
+  color: white !important;
 }
 
 .login-type-badge.employer {
-  color: #0079a1;
+  color: white !important;
 }
 
 .login-type-badge.jobseeker {
-  color: #005177;
+  color: white !important;
+}
+
+.login-type-badge .badge-icon,
+.login-type-badge .badge-text {
+  color: white !important;
 }
