@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Logo_pesdo from '../assets/Logo_pesdo.png';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import TermsAndConditions from '../components/TermsAndConditions';
+import PrivacyPolicy from '../components/PrivacyPolicy';
 import './Register.css';
 
 const Register = () => {
@@ -20,6 +22,10 @@ const Register = () => {
   const [success, setSuccess] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   // Handle auth state changes to show success message when user gets auto-logged in
   useEffect(() => {
@@ -41,6 +47,9 @@ const Register = () => {
         confirmPassword: '',
         userType: formData.userType
       });
+      // Reset acceptance checkboxes
+      setAcceptedTerms(false);
+      setAcceptedPrivacy(false);
       
       // Logout the user immediately so they can test the login form (without redirect)
       logout(true); // Skip redirect to stay on register page
@@ -114,6 +123,14 @@ const Register = () => {
       return 'Password must contain at least one lowercase letter, one uppercase letter, one numeric digit, and one special character.';
     }
 
+    if (!acceptedTerms) {
+      return 'You must accept the Terms and Conditions to create an account.';
+    }
+
+    if (!acceptedPrivacy) {
+      return 'You must accept the Privacy Policy to create an account.';
+    }
+
     return '';
   };
 
@@ -161,6 +178,9 @@ const Register = () => {
         confirmPassword: '',
         userType: formData.userType // Keep the same user type
       });
+      // Reset acceptance checkboxes
+      setAcceptedTerms(false);
+      setAcceptedPrivacy(false);
       
       // Fallback: Show success message after a delay if auth state doesn't change
       setTimeout(() => {
@@ -181,6 +201,9 @@ const Register = () => {
             confirmPassword: '',
             userType: formData.userType
           });
+          // Reset acceptance checkboxes
+          setAcceptedTerms(false);
+          setAcceptedPrivacy(false);
         }
       }, 1000);
            } catch (err) {
@@ -425,10 +448,63 @@ const Register = () => {
               </div>
             </div>
 
+            {/* Terms and Privacy Policy Acceptance */}
+            <div className="form-group terms-acceptance-section">
+              <div className="terms-checkbox-group">
+                <label className="terms-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="terms-checkbox"
+                    required
+                  />
+                  <span className="terms-checkbox-text">
+                    I accept the{' '}
+                    <button
+                      type="button"
+                      className="terms-link"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowTermsModal(true);
+                      }}
+                    >
+                      Terms and Conditions
+                    </button>
+                  </span>
+                </label>
+              </div>
+              
+              <div className="terms-checkbox-group">
+                <label className="terms-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={acceptedPrivacy}
+                    onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+                    className="terms-checkbox"
+                    required
+                  />
+                  <span className="terms-checkbox-text">
+                    I accept the{' '}
+                    <button
+                      type="button"
+                      className="terms-link"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowPrivacyModal(true);
+                      }}
+                    >
+                      Privacy Policy
+                    </button>
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <button 
               type="submit" 
               className="register-btn"
-              disabled={loading}
+              disabled={loading || !acceptedTerms || !acceptedPrivacy}
             >
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>
@@ -479,6 +555,16 @@ const Register = () => {
           )}
         </div>
       </div>
+
+      {/* Terms and Conditions Modal */}
+      {showTermsModal && (
+        <TermsAndConditions onClose={() => setShowTermsModal(false)} />
+      )}
+
+      {/* Privacy Policy Modal */}
+      {showPrivacyModal && (
+        <PrivacyPolicy onClose={() => setShowPrivacyModal(false)} />
+      )}
     </div>
   );
 };

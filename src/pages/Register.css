@@ -508,6 +508,95 @@
   color: #0079a1;
 }
 
+/* Terms and Privacy Policy Acceptance Section */
+.terms-acceptance-section {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  border: 2px solid #e1e5e9;
+}
+
+.terms-checkbox-group {
+  margin-bottom: 15px;
+}
+
+.terms-checkbox-group:last-child {
+  margin-bottom: 0;
+}
+
+.terms-checkbox-label {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #333;
+  width: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex-direction: row !important;
+  text-align: left !important;
+}
+
+.terms-checkbox {
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  max-width: 20px !important;
+  cursor: pointer;
+  accent-color: #005177;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  margin-top: 3px !important;
+  padding: 0 !important;
+  order: -1 !important;
+  align-self: flex-start !important;
+  position: relative;
+  float: none !important;
+}
+
+.terms-checkbox-text {
+  flex: 1 1 auto;
+  user-select: none;
+  display: inline;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  order: 1;
+}
+
+.terms-link {
+  background: none;
+  border: none;
+  color: #005177;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+  padding: 0;
+  margin: 0;
+  font-weight: 600;
+  transition: color 0.3s ease;
+  display: inline;
+  vertical-align: baseline;
+}
+
+.terms-link:hover {
+  color: #0079a1;
+  text-decoration: none;
+}
+
+.terms-link:focus {
+  outline: 2px solid #005177;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .register-header-nav {
@@ -712,6 +801,29 @@
   
   .error-help li {
     margin-bottom: 6px;
+  }
+
+  .terms-acceptance-section {
+    padding: 15px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+  }
+
+  .terms-checkbox-label {
+    font-size: 0.9rem;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .terms-checkbox {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    margin-top: 3px;
+  }
+
+  .terms-checkbox-text {
+    line-height: 1.5;
   }
 }
 
