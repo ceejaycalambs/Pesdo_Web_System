@@ -259,6 +259,30 @@ export const useRealtimeData = (userId, userType, callbacks = {}) => {
               onApplicationsUpdate(payload);
             }
           }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'employer_profiles'
+          },
+          (payload) => {
+            // When employer verification status changes (e.g., to suspended), refresh jobs
+            const oldStatus = payload.old?.verification_status;
+            const newStatus = payload.new?.verification_status;
+            if (oldStatus !== newStatus) {
+              console.log('🔄 Employer verification status changed (jobseeker):', {
+                employerId: payload.new.id,
+                oldStatus,
+                newStatus
+              });
+              // Refresh jobs list when employer status changes (especially if suspended)
+              if (onJobsUpdate) {
+                onJobsUpdate({ new: { id: payload.new.id, verification_status: newStatus } });
+              }
+            }
+          }
         );
     } else if (userType === 'admin' || userType === 'super_admin') {
       // Subscribe to all job status changes for admin

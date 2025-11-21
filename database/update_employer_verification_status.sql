@@ -2,17 +2,17 @@
 -- This migration updates the employer profile creation to set initial status to 'unverified'
 -- and provides a function to automatically update status based on document uploads
 
--- Step 0: Update the check constraint to allow 'unverified' status
+-- Step 0: Update the check constraint to allow 'unverified' and 'suspended' status
 -- First, drop the existing constraint
 ALTER TABLE public.employer_profiles 
 DROP CONSTRAINT IF EXISTS check_verification_status;
 
--- Recreate the constraint with 'unverified' included
+-- Recreate the constraint with 'unverified' and 'suspended' included
 ALTER TABLE public.employer_profiles
 ADD CONSTRAINT check_verification_status 
 CHECK (
   verification_status IS NULL OR 
-  verification_status IN ('unverified', 'pending', 'under_review', 'approved', 'rejected')
+  verification_status IN ('unverified', 'pending', 'under_review', 'approved', 'rejected', 'suspended')
 );
 
 -- Step 1: Update the create_employer_profile function to set verification_status to 'unverified'

@@ -90,22 +90,23 @@ const EmployerVerificationSimple = () => {
         notes: verificationNotes
       });
 
+      // Build update data - start with required fields
       const updateData = {
         verification_status: verificationStatus,
-        verification_notes: verificationNotes
+        verification_notes: verificationNotes && verificationNotes.trim() !== '' ? verificationNotes.trim() : null
       };
 
       // Only add verified_at if status is approved
       if (verificationStatus === 'approved') {
         updateData.verified_at = new Date().toISOString();
-        // Clear suspension fields when approving
-        updateData.suspension_duration_days = null;
-        updateData.suspension_started_at = null;
-        updateData.suspension_notes = null;
-      } else if (verificationStatus === 'suspended') {
+      }
+
+      // Only handle suspension fields if status is suspended
+      // This avoids issues if the columns don't exist in the database
+      if (verificationStatus === 'suspended') {
         // Set suspension fields
         updateData.suspension_started_at = new Date().toISOString();
-        updateData.suspension_notes = suspensionNotes || null;
+        updateData.suspension_notes = suspensionNotes && suspensionNotes.trim() !== '' ? suspensionNotes.trim() : null;
         // Set duration (null = indefinite)
         if (suspensionDuration && suspensionDuration.trim() !== '') {
           const days = parseInt(suspensionDuration, 10);
@@ -117,23 +118,59 @@ const EmployerVerificationSimple = () => {
         } else {
           updateData.suspension_duration_days = null; // Empty = indefinite
         }
-      } else {
-        // Clear suspension fields for other statuses
-        updateData.suspension_duration_days = null;
-        updateData.suspension_started_at = null;
-        updateData.suspension_notes = null;
       }
+      // For other statuses (approved, rejected, pending), we don't include suspension fields
+      // This allows the update to work even if suspension columns don't exist
 
       console.log('📤 Update data:', updateData);
+      console.log('📤 Update data JSON:', JSON.stringify(updateData, null, 2));
 
-      const { data, error } = await supabase
+      // First, try update with select
+      let { data, error } = await supabase
         .from('employer_profiles')
         .update(updateData)
         .eq('id', selectedEmployer.id)
         .select();
 
+      console.log('📊 Update result:', { hasData: !!data, hasError: !!error, error });
+
+      // If select fails but update might have succeeded, try without select
+      if (error && (error.code === 'PGRST116' || (error.message && error.message.includes('select')))) {
+        console.warn('⚠️ Select failed, trying update without select:', error?.message || 'Unknown error');
+        const { error: updateError } = await supabase
+          .from('employer_profiles')
+          .update(updateData)
+          .eq('id', selectedEmployer.id);
+        
+        if (updateError) {
+          console.error('❌ Update error:', updateError);
+          throw updateError;
+        }
+        console.log('✅ Update succeeded without select, fetching data separately...');
+        // If update succeeded, fetch the data separately
+        const { data: fetchedData, error: fetchError } = await supabase
+          .from('employer_profiles')
+          .select('*')
+          .eq('id', selectedEmployer.id)
+          .maybeSingle();
+        
+        if (fetchError) {
+          console.warn('⚠️ Could not fetch updated data:', fetchError);
+        } else {
+          data = fetchedData;
+          console.log('✅ Successfully fetched updated data');
+        }
+        error = null; // Clear error since update succeeded
+      }
+
       if (error) {
-        console.error('❌ Supabase error:', error);
+        console.error('❌ Supabase error details:', {
+          message: error?.message || 'Unknown error',
+          details: error?.details || null,
+          hint: error?.hint || null,
+          code: error?.code || null,
+          fullError: error ? JSON.stringify(error, Object.getOwnPropertyNames(error)) : 'null'
+        });
         throw error;
       }
 
@@ -169,6 +206,30 @@ const EmployerVerificationSimple = () => {
           actionDescription = `${adminName} updated employer verification status to ${verificationStatus}`;
         }
 
+        // Build metadata with suspension details if applicable
+        const metadata = {
+          adminName: adminName,
+          employerId: selectedEmployer.id,
+          businessName: selectedEmployer.business_name,
+          verificationStatus: verificationStatus,
+          verificationNotes: verificationNotes
+        };
+
+        // Add suspension-specific details to metadata
+        if (verificationStatus === 'suspended') {
+          metadata.suspensionNotes = suspensionNotes || null;
+          if (suspensionDuration && suspensionDuration.trim() !== '') {
+            const days = parseInt(suspensionDuration, 10);
+            if (!isNaN(days) && days > 0) {
+              metadata.suspensionDurationDays = days;
+            } else {
+              metadata.suspensionDurationDays = null; // Indefinite
+            }
+          } else {
+            metadata.suspensionDurationDays = null; // Indefinite
+          }
+        }
+
         await logActivity({
           userId: currentUser.id,
           userType: adminRole === 'super_admin' ? 'super_admin' : 'admin',
@@ -176,13 +237,7 @@ const EmployerVerificationSimple = () => {
           actionDescription: actionDescription,
           entityType: 'profile',
           entityId: selectedEmployer.id,
-          metadata: {
-            adminName: adminName,
-            employerId: selectedEmployer.id,
-            businessName: selectedEmployer.business_name,
-            verificationStatus: verificationStatus,
-            verificationNotes: verificationNotes
-          }
+          metadata: metadata
         });
       }
 
@@ -325,10 +380,26 @@ const EmployerVerificationSimple = () => {
     } catch (error) {
       console.error('❌ Error updating verification:', error);
       
+      // Build detailed error message
+      let errorMessage = 'Error updating verification';
+      if (error && typeof error === 'object') {
+        if (error.message) {
+          errorMessage = error.message;
+        }
+        if (error.details) {
+          errorMessage += `: ${error.details}`;
+        }
+        if (error.hint) {
+          errorMessage += ` (${error.hint})`;
+        }
+      } else if (error) {
+        errorMessage = String(error);
+      }
+      
       // Show error notification
       setNotification({
         type: 'error',
-        message: `❌ Error updating verification: ${error.message}`,
+        message: `❌ ${errorMessage}`,
         show: true
       });
       

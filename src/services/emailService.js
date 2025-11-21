@@ -355,6 +355,8 @@ export const sendEmployerVerificationEmail = async (email, employerName, status,
     to: email, 
     subject: isApproved 
       ? `✅ Account Verification Approved - PESDO Surigao` 
+      : isSuspended
+      ? `⛔ Account Suspended - PESDO Surigao`
       : `⚠️ Account Verification Update - PESDO Surigao`,
     html: html,
     text: text

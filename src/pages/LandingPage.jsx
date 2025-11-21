@@ -183,13 +183,13 @@ const LandingPage = () => {
                 });
                 
                 // Fetch approved jobs (Vacancies Solicited) with employer info
-                // Only count jobs from existing employers (filter out deleted employers)
+                // Only count jobs from existing employers (filter out deleted and suspended employers)
                 const { data: jobs, error: jobsError } = await supabase
                     .from('jobs')
-                    .select('id, employer_id, employer_profiles(id)')
+                    .select('id, employer_id, employer_profiles(id, verification_status)')
                     .eq('status', 'approved');
                 
-                // Filter out jobs from deleted employers
+                // Filter out jobs from deleted employers and suspended employers
                 const validJobs = (jobs || []).filter(job => {
                     if (!job.employer_id) {
                         console.log(`Skipping job ${job.id} - no employer_id`);
@@ -197,6 +197,11 @@ const LandingPage = () => {
                     }
                     if (!job.employer_profiles) {
                         console.log(`Skipping job ${job.id} - employer ${job.employer_id} has been deleted`);
+                        return false;
+                    }
+                    // Exclude jobs from suspended employers
+                    if (job.employer_profiles.verification_status === 'suspended') {
+                        console.log(`Skipping job ${job.id} - employer ${job.employer_id} is suspended`);
                         return false;
                     }
                     return true;
@@ -281,13 +286,21 @@ const LandingPage = () => {
                             const [jobseekerRes, employerRes, jobsRes, applicationsRes] = await Promise.all([
                                 supabase.from('jobseeker_profiles').select('id'),
                                 supabase.from('employer_profiles').select('id'),
-                                supabase.from('jobs').select('id, employer_id, employer_profiles(id)').eq('status', 'approved'),
+                                supabase.from('jobs').select('id, employer_id, employer_profiles(id, verification_status)').eq('status', 'approved'),
                                 supabase.from('applications').select('id, status')
                             ]);
                             
-                            const validJobs = (jobsRes.data || []).filter(job => 
-                                job.employer_id && job.employer_profiles
-                            );
+                            // Filter out jobs from deleted employers and suspended employers
+                            const validJobs = (jobsRes.data || []).filter(job => {
+                                if (!job.employer_id || !job.employer_profiles) {
+                                    return false;
+                                }
+                                // Exclude jobs from suspended employers
+                                if (job.employer_profiles.verification_status === 'suspended') {
+                                    return false;
+                                }
+                                return true;
+                            });
                             
                             const referralsCount = (applicationsRes.data || []).filter(app => 
                                 (app.status || '').toLowerCase() === 'referred'

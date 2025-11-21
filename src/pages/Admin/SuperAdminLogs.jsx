@@ -212,6 +212,7 @@ const SuperAdminLogs = () => {
       'application_rejected': 'Application Rejected',
       'employer_verified': 'Employer Verified',
       'employer_rejected': 'Employer Rejected',
+      'employer_suspended': 'Employer Suspended',
       'employer_verification_updated': 'Employer Verification Updated',
       'account_created': 'Account Created'
     };

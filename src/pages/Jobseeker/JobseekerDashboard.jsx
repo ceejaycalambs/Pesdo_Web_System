@@ -361,9 +361,11 @@ const JobseekerDashboard = () => {
 
     try {
       // First, fetch existing employer IDs to ensure we don't show jobs from deleted employers
+      // Also exclude suspended employers - their jobs should not be visible to jobseekers
       const { data: employerRows, error: employerErr } = await supabase
         .from('employer_profiles')
-        .select('id');
+        .select('id')
+        .neq('verification_status', 'suspended'); // Exclude suspended employers
       if (employerErr) throw employerErr;
       const existingEmployerIds = (employerRows || []).map(r => r.id).filter(Boolean);
 
@@ -453,6 +455,7 @@ const JobseekerDashboard = () => {
         .filter((jobId) => jobId && !jobMap.has(jobId));
 
       if (missingJobIds.length) {
+        // Fetch extra jobs but only from non-suspended employers
         const { data: extraJobs, error: extraJobsError } = await supabase
           .from('jobs')
           .select('*')
