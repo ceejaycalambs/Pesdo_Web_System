@@ -43,6 +43,32 @@ const ALLOWED_AVATAR_TYPES = new Set([
   'image/webp'
 ]);
 
+const CERTIFICATE_CONFIG = [
+  { key: 'nc1', label: 'NC I' },
+  { key: 'nc2', label: 'NC II' },
+  { key: 'nc3', label: 'NC III' },
+  { key: 'nc4', label: 'NC IV' }
+];
+
+const OTHER_CERTIFICATE_TYPES = [
+  'Driver\'s License',
+  'Professional License',
+  'Safety Certificate',
+  'Training Certificate',
+  'Skills Certificate',
+  'Trade Certificate',
+  'Vocational Certificate',
+  'Other'
+];
+
+const ALLOWED_CERTIFICATE_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp'
+]);
+const MAX_CERTIFICATE_SIZE_MB = 10;
+
 const formatDate = (value) => {
   if (!value) return '—';
   const date = new Date(value);
@@ -122,6 +148,17 @@ const resolveEmploymentStatus = (value) => {
   }
   return '';
 };
+
+const createInitialCertificateState = () =>
+  CERTIFICATE_CONFIG.reduce((acc, cert) => {
+    acc[cert.key] = {
+      pendingFile: null,
+      uploading: false,
+      success: '',
+      error: ''
+    };
+    return acc;
+  }, {});
 
 const JobseekerDashboard = () => {
   const { currentUser, userData, logout, profileLoaded } = useAuth();
@@ -265,6 +302,15 @@ const JobseekerDashboard = () => {
     success: '',
     error: ''
   });
+  const [certificateState, setCertificateState] = useState(createInitialCertificateState());
+  const [otherCertificateState, setOtherCertificateState] = useState({
+    selectedType: '',
+    pendingFile: null,
+    uploading: false,
+    success: '',
+    error: ''
+  });
+  const otherCertificateInputRef = useRef(null);
 
   const extractStoragePathFromUrl = (publicUrl) => {
     if (!publicUrl) return null;
@@ -1266,6 +1312,427 @@ const JobseekerDashboard = () => {
     }
   };
 
+  const setCertificateStatus = (key, updates) => {
+    setCertificateState((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        ...updates
+      }
+    }));
+  };
+
+  const handleCertificateFileSelect = (key, event) => {
+    const file = event.target.files?.[0] || null;
+    console.log(`📄 Certificate file selected for ${key}:`, file);
+    
+    if (!file) {
+      setCertificateStatus(key, {
+        pendingFile: null,
+        success: '',
+        error: ''
+      });
+      return;
+    }
+
+    // Validate file immediately
+    const validationError = validateCertificateFile(file);
+    if (validationError) {
+      console.error(`❌ Validation error for ${key}:`, validationError);
+      setCertificateStatus(key, {
+        pendingFile: null,
+        success: '',
+        error: validationError
+      });
+      // Clear the input
+      event.target.value = '';
+      return;
+    }
+
+    console.log(`✅ File validated for ${key}:`, file.name, file.type, `${(file.size / (1024 * 1024)).toFixed(2)} MB`);
+    setCertificateStatus(key, {
+      pendingFile: file,
+      success: `Ready to upload "${file.name}". Click Upload to continue.`,
+      error: ''
+    });
+  };
+
+  const validateCertificateFile = (file) => {
+    if (!file) {
+      return 'Please choose a certificate file.';
+    }
+    if (!ALLOWED_CERTIFICATE_TYPES.has(file.type)) {
+      return 'Certificates must be PDF or image files (JPG, PNG, WEBP).';
+    }
+    const sizeInMb = file.size / (1024 * 1024);
+    if (sizeInMb > MAX_CERTIFICATE_SIZE_MB) {
+      return `File is too large. Maximum allowed size is ${MAX_CERTIFICATE_SIZE_MB} MB.`;
+    }
+    return null;
+  };
+
+  const handleCertificateUpload = async (key) => {
+    if (!jobseekerId) {
+      setCertificateStatus(key, {
+        error: 'You must be signed in to upload certificates.',
+        success: ''
+      });
+      return;
+    }
+
+    const pendingFile = certificateState[key]?.pendingFile;
+    const validationError = validateCertificateFile(pendingFile);
+    if (validationError) {
+      setCertificateStatus(key, { error: validationError, success: '' });
+      return;
+    }
+
+    const columnUrl = `${key}_certificate_url`;
+    const columnUploaded = `${key}_certificate_uploaded_at`;
+    const previousUrl = profile?.[columnUrl] || null;
+
+    setCertificateStatus(key, { uploading: true, error: '', success: '' });
+
+    const extension = pendingFile.name.split('.').pop()?.toLowerCase() || 'pdf';
+    const filePath = `jobseekers/${jobseekerId}/certificates/${key}-${Date.now()}.${extension}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('files')
+        .upload(filePath, pendingFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl }
+      } = supabase.storage.from('files').getPublicUrl(filePath);
+
+      const uploadedAt = new Date().toISOString();
+      
+      // Try updating with certificate columns
+      let updateError = null;
+      let updateResult = await supabase
+        .from('jobseeker_profiles')
+        .update({
+          [columnUrl]: publicUrl,
+          [columnUploaded]: uploadedAt,
+          updated_at: uploadedAt
+        })
+        .eq('id', jobseekerId);
+
+      updateError = updateResult.error;
+
+      // If schema cache error, try using RPC or wait and retry
+      if (updateError && (updateError.code === 'PGRST204' || updateError.message?.includes('schema cache'))) {
+        console.warn('⚠️ Schema cache issue detected, waiting 2 seconds and retrying...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Retry the update
+        updateResult = await supabase
+          .from('jobseeker_profiles')
+          .update({
+            [columnUrl]: publicUrl,
+            [columnUploaded]: uploadedAt,
+            updated_at: uploadedAt
+          })
+          .eq('id', jobseekerId);
+        
+        updateError = updateResult.error;
+        
+        if (updateError && (updateError.code === 'PGRST204' || updateError.message?.includes('schema cache'))) {
+          throw new Error('Database schema cache needs to be refreshed. Please contact the administrator or wait a few minutes and try again. The columns may have been created but PostgREST needs to reload its schema cache.');
+        }
+      }
+
+      if (updateError) throw updateError;
+
+      if (previousUrl) {
+        await deleteStorageFile(previousUrl);
+      }
+
+      setProfile((prev) => ({
+        ...prev,
+        [columnUrl]: publicUrl,
+        [columnUploaded]: uploadedAt,
+        updated_at: uploadedAt
+      }));
+
+      if (currentUser?.id && profile) {
+        const jobseekerName =
+          `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email || 'Unknown';
+        await logActivity({
+          userId: currentUser.id,
+          userType: 'jobseeker',
+          actionType: 'certificate_uploaded',
+          actionDescription: `${jobseekerName} uploaded ${key.toUpperCase()} certificate: ${pendingFile.name}`,
+          entityType: 'profile',
+          entityId: jobseekerId,
+          metadata: {
+            certificateLevel: key,
+            fileName: pendingFile.name,
+            fileSize: pendingFile.size,
+            fileType: pendingFile.type
+          }
+        });
+      }
+
+      setCertificateStatus(key, {
+        uploading: false,
+        pendingFile: null,
+        success: `${pendingFile.name} uploaded successfully.`,
+        error: ''
+      });
+    } catch (error) {
+      console.error(`Failed to upload ${key} certificate:`, error);
+      setCertificateStatus(key, {
+        uploading: false,
+        success: '',
+        error: 'Unable to upload certificate right now. Please try again.'
+      });
+    }
+  };
+
+  const handleCertificateRemove = async (key) => {
+    if (!jobseekerId) return;
+    const columnUrl = `${key}_certificate_url`;
+    const columnUploaded = `${key}_certificate_uploaded_at`;
+    if (!profile?.[columnUrl]) return;
+
+    setCertificateStatus(key, { uploading: true, error: '', success: '' });
+
+    try {
+      await deleteStorageFile(profile[columnUrl]);
+
+      const updatedAt = new Date().toISOString();
+      const { error } = await supabase
+        .from('jobseeker_profiles')
+        .update({
+          [columnUrl]: null,
+          [columnUploaded]: null,
+          updated_at: updatedAt
+        })
+        .eq('id', jobseekerId);
+
+      if (error) throw error;
+
+      setProfile((prev) => ({
+        ...prev,
+        [columnUrl]: null,
+        [columnUploaded]: null,
+        updated_at: updatedAt
+      }));
+
+      setCertificateStatus(key, {
+        uploading: false,
+        pendingFile: null,
+        success: 'Certificate removed.',
+        error: ''
+      });
+    } catch (error) {
+      console.error(`Failed to remove ${key} certificate:`, error);
+      setCertificateStatus(key, {
+        uploading: false,
+        success: '',
+        error: 'Unable to remove certificate. Please try again.'
+      });
+    }
+  };
+
+  const handleOtherCertificateFileSelect = (event) => {
+    const file = event.target.files?.[0];
+    console.log('📄 Other certificate file selected:', file);
+    
+    if (!file) {
+      setOtherCertificateState(prev => ({
+        ...prev,
+        pendingFile: null,
+        error: '',
+        success: ''
+      }));
+      return;
+    }
+
+    // Validate file type
+    if (!ALLOWED_CERTIFICATE_TYPES.has(file.type)) {
+      console.error('❌ Invalid file type:', file.type);
+      setOtherCertificateState(prev => ({
+        ...prev,
+        error: 'Please upload a PDF or image file (JPG, PNG, WEBP).',
+        pendingFile: null,
+        success: ''
+      }));
+      event.target.value = '';
+      return;
+    }
+
+    // Validate file size
+    const sizeInMb = file.size / (1024 * 1024);
+    if (sizeInMb > MAX_CERTIFICATE_SIZE_MB) {
+      console.error('❌ File too large:', sizeInMb, 'MB');
+      setOtherCertificateState(prev => ({
+        ...prev,
+        error: `File is too large. Maximum allowed size is ${MAX_CERTIFICATE_SIZE_MB} MB.`,
+        pendingFile: null,
+        success: ''
+      }));
+      event.target.value = '';
+      return;
+    }
+
+    // File is valid - set it as pending
+    console.log('✅ File validated:', file.name, file.type, `${sizeInMb.toFixed(2)} MB`);
+    setOtherCertificateState(prev => ({
+      ...prev,
+      pendingFile: file,
+      success: `Ready to upload "${file.name}". Select certificate type and click Upload.`,
+      error: ''
+    }));
+  };
+
+  const handleOtherCertificateUpload = async () => {
+    if (!otherCertificateState.pendingFile || !otherCertificateState.selectedType || !jobseekerId) {
+      setOtherCertificateState(prev => ({
+        ...prev,
+        error: 'Please select a certificate type and choose a file before uploading.'
+      }));
+      return;
+    }
+
+    const file = otherCertificateState.pendingFile;
+    setOtherCertificateState(prev => ({ ...prev, uploading: true, error: '', success: '' }));
+
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+    const filePath = `jobseekers/${jobseekerId}/certificates/other-${Date.now()}.${extension}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('files')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl }
+      } = supabase.storage.from('files').getPublicUrl(filePath);
+
+      const uploadedAt = new Date().toISOString();
+      const otherCerts = Array.isArray(profile?.other_certificates) ? profile.other_certificates : [];
+      const newCert = {
+        type: otherCertificateState.selectedType,
+        url: publicUrl,
+        uploaded_at: uploadedAt,
+        file_name: file.name
+      };
+
+      const { error: updateError } = await supabase
+        .from('jobseeker_profiles')
+        .update({
+          other_certificates: [...otherCerts, newCert],
+          updated_at: uploadedAt
+        })
+        .eq('id', jobseekerId);
+
+      if (updateError) throw updateError;
+
+      setProfile((prev) => ({
+        ...prev,
+        other_certificates: [...otherCerts, newCert],
+        updated_at: uploadedAt
+      }));
+
+      if (currentUser?.id && profile) {
+        const jobseekerName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email || 'Unknown';
+        await logActivity({
+          userId: currentUser.id,
+          userType: 'jobseeker',
+          actionType: 'certificate_uploaded',
+          actionDescription: `${jobseekerName} uploaded ${otherCertificateState.selectedType} certificate: ${file.name}`,
+          entityType: 'profile',
+          entityId: jobseekerId,
+          metadata: {
+            certificateType: otherCertificateState.selectedType,
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type
+          }
+        });
+      }
+
+      setOtherCertificateState({
+        selectedType: '',
+        pendingFile: null,
+        uploading: false,
+        success: 'Certificate uploaded successfully.',
+        error: ''
+      });
+      if (otherCertificateInputRef.current) {
+        otherCertificateInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Failed to upload other certificate:', error);
+      setOtherCertificateState(prev => ({
+        ...prev,
+        uploading: false,
+        success: '',
+        error: 'Unable to upload certificate. Please try again.'
+      }));
+    }
+  };
+
+  const handleOtherCertificateRemove = async (index) => {
+    if (!jobseekerId || !profile?.other_certificates) return;
+
+    const otherCerts = Array.isArray(profile.other_certificates) ? profile.other_certificates : [];
+    if (index < 0 || index >= otherCerts.length) return;
+
+    const certToRemove = otherCerts[index];
+    setOtherCertificateState(prev => ({ ...prev, uploading: true, error: '', success: '' }));
+
+    try {
+      await deleteStorageFile(certToRemove.url);
+
+      const updatedCerts = otherCerts.filter((_, i) => i !== index);
+      const updatedAt = new Date().toISOString();
+
+      const { error } = await supabase
+        .from('jobseeker_profiles')
+        .update({
+          other_certificates: updatedCerts,
+          updated_at: updatedAt
+        })
+        .eq('id', jobseekerId);
+
+      if (error) throw error;
+
+      setProfile((prev) => ({
+        ...prev,
+        other_certificates: updatedCerts,
+        updated_at: updatedAt
+      }));
+
+      setOtherCertificateState(prev => ({
+        ...prev,
+        uploading: false,
+        success: 'Certificate removed successfully.',
+        error: ''
+      }));
+    } catch (error) {
+      console.error('Failed to remove other certificate:', error);
+      setOtherCertificateState(prev => ({
+        ...prev,
+        uploading: false,
+        success: '',
+        error: 'Unable to remove certificate. Please try again.'
+      }));
+    }
+  };
+
   const handleProfileAvatarUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file || !jobseekerId) return;
@@ -2220,6 +2687,197 @@ const JobseekerDashboard = () => {
             )}
           </div>
         </div>
+
+        <section className="certificate-section">
+          <div className="certificate-section-header">
+            <div>
+              <h2>TESDA Certificates (NC I – NC IV)</h2>
+              <p className="muted">
+                Upload your TESDA certificates so admins can prioritize you for referrals that require specific NC levels.
+              </p>
+            </div>
+          </div>
+          <div className="certificate-grid">
+            {CERTIFICATE_CONFIG.map((cert) => {
+              const urlField = `${cert.key}_certificate_url`;
+              const uploadedField = `${cert.key}_certificate_uploaded_at`;
+              const certificateUrl = profile?.[urlField] || null;
+              const uploadedAt = profile?.[uploadedField] || null;
+              const state = certificateState[cert.key] || {};
+
+              return (
+                <div className="certificate-card" key={cert.key}>
+                  <div className="certificate-card-header">
+                    <div>
+                      <h3>{cert.label} Certificate</h3>
+                      <span className="muted small">
+                        {uploadedAt ? `Uploaded on ${formatDate(uploadedAt)}` : 'No upload yet'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="certificate-hint">
+                    Upload your {cert.label} certificate to increase your referral score for jobs requiring this level.
+                  </p>
+                  <div className="certificate-upload">
+                    <label className="upload-control">
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        onChange={(event) => handleCertificateFileSelect(cert.key, event)}
+                        disabled={state.uploading}
+                      />
+                      <span className="upload-button">{state.uploading ? 'Uploading…' : 'Choose File'}</span>
+                    </label>
+                    <button
+                      type="button"
+                      className="primary-btn"
+                      onClick={() => handleCertificateUpload(cert.key)}
+                      disabled={state.uploading || !state.pendingFile}
+                    >
+                      Upload
+                    </button>
+                  </div>
+                  {state.pendingFile && !state.uploading ? (
+                    <p className="upload-hint">Ready: {state.pendingFile.name}</p>
+                  ) : null}
+                  {state.error ? <div className="form-message error">{state.error}</div> : null}
+                  {state.success ? <div className="form-message success">{state.success}</div> : null}
+
+                  <div className="certificate-file">
+                    {certificateUrl ? (
+                      <div className="certificate-actions">
+                        <a
+                          href={certificateUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="outline-btn"
+                        >
+                          View
+                        </a>
+                        <a href={certificateUrl} download className="outline-btn">
+                          Download
+                        </a>
+                        <button
+                          type="button"
+                          className="outline-btn danger"
+                          onClick={() => handleCertificateRemove(cert.key)}
+                          disabled={state.uploading}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="certificate-empty">
+                        <div className="empty-icon">📑</div>
+                        <p>No certificate uploaded yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="certificate-section">
+          <div className="certificate-section-header">
+            <div>
+              <h2>Other Certificates</h2>
+              <p className="muted">
+                Upload additional certificates (Driver's License, Professional License, Training Certificates, etc.). Each certificate adds 5 points to your referral score.
+              </p>
+            </div>
+          </div>
+          <div className="certificate-card">
+            <div className="certificate-card-header">
+              <h3>Add New Certificate</h3>
+            </div>
+            <div className="certificate-upload-form">
+              <label className="form-field">
+                <span>Certificate Type *</span>
+                <select
+                  value={otherCertificateState.selectedType}
+                  onChange={(e) => setOtherCertificateState(prev => ({ ...prev, selectedType: e.target.value, error: '' }))}
+                  disabled={otherCertificateState.uploading}
+                >
+                  <option value="">Select certificate type</option>
+                  {OTHER_CERTIFICATE_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="certificate-upload">
+                <label className="upload-control">
+                  <input
+                    ref={otherCertificateInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={handleOtherCertificateFileSelect}
+                    disabled={otherCertificateState.uploading}
+                  />
+                  <span className="upload-button">{otherCertificateState.uploading ? 'Uploading…' : 'Choose File'}</span>
+                </label>
+                <button
+                  type="button"
+                  className="primary-btn"
+                  onClick={handleOtherCertificateUpload}
+                  disabled={otherCertificateState.uploading || !otherCertificateState.pendingFile || !otherCertificateState.selectedType}
+                >
+                  Upload
+                </button>
+              </div>
+              {otherCertificateState.pendingFile && !otherCertificateState.uploading ? (
+                <p className="upload-hint">Ready: {otherCertificateState.pendingFile.name}</p>
+              ) : null}
+              {otherCertificateState.error ? <div className="form-message error">{otherCertificateState.error}</div> : null}
+              {otherCertificateState.success ? <div className="form-message success">{otherCertificateState.success}</div> : null}
+            </div>
+          </div>
+
+          {profile?.other_certificates && Array.isArray(profile.other_certificates) && profile.other_certificates.length > 0 ? (
+            <div className="certificate-list">
+              <h3>Uploaded Certificates</h3>
+              <div className="certificate-grid">
+                {profile.other_certificates.map((cert, index) => (
+                  <div className="certificate-card" key={index}>
+                    <div className="certificate-card-header">
+                      <div>
+                        <h3>{cert.type || 'Certificate'}</h3>
+                        <span className="muted small">
+                          {cert.uploaded_at ? `Uploaded on ${formatDate(cert.uploaded_at)}` : 'Uploaded'}
+                        </span>
+                      </div>
+                    </div>
+                    {cert.file_name ? (
+                      <p className="certificate-hint">File: {cert.file_name}</p>
+                    ) : null}
+                    <div className="certificate-actions">
+                      <a
+                        href={cert.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="outline-btn"
+                      >
+                        View
+                      </a>
+                      <a href={cert.url} download className="outline-btn">
+                        Download
+                      </a>
+                      <button
+                        type="button"
+                        className="outline-btn danger"
+                        onClick={() => handleOtherCertificateRemove(index)}
+                        disabled={otherCertificateState.uploading}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
       </div>
     );
   };

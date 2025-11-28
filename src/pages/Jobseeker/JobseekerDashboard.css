@@ -61,7 +61,6 @@
 .user-name {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff !important;
 }
 
 .user-email {
@@ -861,6 +860,112 @@
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
+.certificate-section {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.certificate-section-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.certificate-section-header .muted {
+  margin-top: 4px;
+}
+
+.certificate-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.certificate-card {
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 50, 73, 0.08);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 12px 24px rgba(15, 50, 73, 0.08);
+}
+
+.certificate-card-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.certificate-card-header .small {
+  font-size: 13px;
+}
+
+.certificate-hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.certificate-upload {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.certificate-upload .primary-btn {
+  padding: 10px 18px;
+  border-radius: 999px;
+}
+
+.certificate-file {
+  margin-top: 6px;
+}
+
+.certificate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.certificate-actions .outline-btn {
+  border-radius: 999px;
+  padding: 8px 16px;
+}
+
+.certificate-empty {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(15, 50, 73, 0.04);
+  border: 1px dashed rgba(15, 50, 73, 0.2);
+  text-align: center;
+  color: #64748b;
+}
+
+.certificate-upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.certificate-list {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.certificate-list h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #0f172a;
+}
+
 .resume-card {
   background: #ffffff;
   border-radius: 20px;
@@ -1603,7 +1708,6 @@
     font-size: 13px;
     line-height: 1.2;
     font-weight: 600;
-    color: #ffffff !important;
     visibility: visible !important;
     opacity: 1 !important;
   }
@@ -1926,7 +2030,6 @@
 
   .user-name {
     font-size: 14px;
-    color: #ffffff !important;
   }
 
   .user-email {

@@ -9,6 +9,14 @@ import { sendJobApprovalSMS, sendApplicationStatusSMS } from '../../services/sms
 import { sendJobApprovalEmail, sendApplicationStatusEmail } from '../../services/emailService';
 import './JobManagement.css';
 
+const CERTIFICATE_LEVELS = ['nc1', 'nc2', 'nc3', 'nc4'];
+const CERTIFICATE_KEYWORDS = {
+  nc1: ['nc1', 'nc 1', 'nc-i', 'nc i'],
+  nc2: ['nc2', 'nc 2', 'nc-ii', 'nc ii'],
+  nc3: ['nc3', 'nc 3', 'nc-iii', 'nc iii'],
+  nc4: ['nc4', 'nc 4', 'nc-iv', 'nc iv']
+};
+
 const JobManagementSimplified = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -33,6 +41,8 @@ const JobManagementSimplified = () => {
   const [applications, setApplications] = useState([]);
   const [selectedResumeUrl, setSelectedResumeUrl] = useState(null);
   const [showResumeModal, setShowResumeModal] = useState(false);
+  const [showCertificatesModal, setShowCertificatesModal] = useState(false);
+  const [selectedCertificatesJobseeker, setSelectedCertificatesJobseeker] = useState(null);
   const [jobSearchTerm, setJobSearchTerm] = useState('');
   const [jobStatusFilter, setJobStatusFilter] = useState('all');
   const [jobTypeFilter, setJobTypeFilter] = useState('all');
@@ -413,7 +423,7 @@ const JobManagementSimplified = () => {
     try {
       const { data, error } = await supabase
         .from('jobseeker_profiles')
-        .select('id, first_name, last_name, suffix, email, phone, bio, profile_picture_url, resume_url, preferred_jobs, status, gender, age, address')
+        .select('id, first_name, last_name, suffix, email, phone, bio, profile_picture_url, resume_url, preferred_jobs, status, gender, age, address, nc1_certificate_url, nc2_certificate_url, nc3_certificate_url, nc4_certificate_url, other_certificates')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -422,6 +432,55 @@ const JobManagementSimplified = () => {
       console.error('Error fetching jobseekers:', error);
       showNotification('error', 'Failed to load jobseekers');
     }
+  };
+
+  const normalizeNumber = (value) => {
+    if (value === null || value === undefined) return null;
+    const num = Number(value);
+    return Number.isNaN(num) ? null : num;
+  };
+
+  // Calculate match score based on certificates and experience (months ➜ years)
+  const calculateMatchScore = (jobseeker, job) => {
+    let score = 0;
+
+    const experienceMonths =
+      normalizeNumber(job.work_experience_months) ??
+      normalizeNumber(job.required_experience_months) ??
+      normalizeNumber(job.work_experience) ??
+      0;
+
+    const experienceYears = experienceMonths > 0 ? experienceMonths / 12 : 1;
+
+    const certificateValues = {
+      nc1: 10,
+      nc2: 20,
+      nc3: 30,
+      nc4: 40
+    };
+
+    if (jobseeker.nc1_certificate_url) score += certificateValues.nc1 * experienceYears;
+    if (jobseeker.nc2_certificate_url) score += certificateValues.nc2 * experienceYears;
+    if (jobseeker.nc3_certificate_url) score += certificateValues.nc3 * experienceYears;
+    if (jobseeker.nc4_certificate_url) score += certificateValues.nc4 * experienceYears;
+
+    const otherCertCount = Array.isArray(jobseeker.other_certificates)
+      ? jobseeker.other_certificates.length
+      : 0;
+    if (otherCertCount > 0) {
+      score += otherCertCount * 5 * experienceYears;
+    }
+
+    const jobTitle = (job.position_title || job.title || '').toLowerCase();
+    const preferredJobs = Array.isArray(jobseeker.preferred_jobs)
+      ? jobseeker.preferred_jobs.map((j) => j.toLowerCase())
+      : [];
+
+    if (preferredJobs.some((pref) => pref && (jobTitle.includes(pref) || pref.includes(jobTitle)))) {
+      score += 15;
+    }
+
+    return Math.round(score);
   };
 
   // Handle viewing resume
@@ -435,6 +494,11 @@ const JobManagementSimplified = () => {
     setSelectedResumeUrl(resumeUrl);
     setShowResumeModal(true);
     console.log('✅ Resume modal opened');
+  };
+
+  const handleViewCertificates = (jobseeker) => {
+    setSelectedCertificatesJobseeker(jobseeker);
+    setShowCertificatesModal(true);
   };
 
   // Handle opening refer jobseekers modal for a job
@@ -2478,7 +2542,7 @@ const JobManagementSimplified = () => {
               {(() => {
                 // Filter jobseekers who haven't applied or been accepted/rejected
                 const normalizedSearch = referNameSearch.trim().toLowerCase();
-                const availableJobseekers = jobseekers.filter((jobseeker) => {
+                let availableJobseekers = jobseekers.filter((jobseeker) => {
                   const fullName = formatJobseekerName(jobseeker).toLowerCase();
                   const email = (jobseeker.email || '').toLowerCase();
                   const preferredJobs = Array.isArray(jobseeker.preferred_jobs)
@@ -2521,6 +2585,12 @@ const JobManagementSimplified = () => {
                   return false; // Has accepted/rejected/hired - hide
                 });
 
+                // Calculate scores and sort by score (highest first)
+                availableJobseekers = availableJobseekers.map(jobseeker => ({
+                  ...jobseeker,
+                  matchScore: calculateMatchScore(jobseeker, selectedJobForReferral)
+                })).sort((a, b) => b.matchScore - a.matchScore);
+
                 return (
                   <>
                     <div className="jobseeker-modal-toolbar">
@@ -2558,6 +2628,7 @@ const JobManagementSimplified = () => {
                           <table className="jobs-table refer-jobseekers">
                             <thead>
                               <tr>
+                                <th>Score</th>
                                 <th>Jobseeker</th>
                                 <th>Email</th>
                                 <th>Preferred Jobs</th>
@@ -2581,9 +2652,27 @@ const JobManagementSimplified = () => {
                                   ? jobseeker.preferred_jobs.filter(Boolean)
                                   : [];
                                 const employmentStatusLabel = formatEmploymentStatus(jobseeker.status);
+                                const matchScore = jobseeker.matchScore || 0;
 
                                 return (
                                   <tr key={jobseeker.id}>
+                                    <td>
+                                      <span className="match-score" style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        minWidth: '40px',
+                                        height: '32px',
+                                        padding: '0 12px',
+                                        borderRadius: '16px',
+                                        fontWeight: '700',
+                                        fontSize: '14px',
+                                        backgroundColor: matchScore >= 40 ? 'rgba(34, 197, 94, 0.15)' : matchScore >= 20 ? 'rgba(251, 191, 36, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                                        color: matchScore >= 40 ? '#047857' : matchScore >= 20 ? '#b45309' : '#64748b'
+                                      }}>
+                                        {matchScore}
+                                      </span>
+                                    </td>
                                     <td>{formatJobseekerName(jobseeker) || 'Unnamed Jobseeker'}</td>
                                     <td>{jobseeker.email || '—'}</td>
                                     <td>{preferredJobsList.length ? preferredJobsList.join(', ') : 'Not specified'}</td>
@@ -2592,16 +2681,25 @@ const JobManagementSimplified = () => {
                                     <td>{jobseeker.age ? `${jobseeker.age}` : '—'}</td>
                                     <td>{jobseeker.address || 'Not specified'}</td>
                                     <td>
-                                      {resumeUrl ? (
+                                      <div className="action-buttons">
+                                        {resumeUrl ? (
+                                          <button
+                                            className="btn-view-resume"
+                                            onClick={() => handleViewResume(resumeUrl)}
+                                          >
+                                            View Resume
+                                          </button>
+                                        ) : (
+                                          <span className="no-resume-indicator">No Resume</span>
+                                        )}
                                         <button
-                                          className="btn-view-resume"
-                                          onClick={() => handleViewResume(resumeUrl)}
+                                          className="btn-view-certificates"
+                                          onClick={() => handleViewCertificates(jobseeker)}
+                                          type="button"
                                         >
-                                          View Resume
+                                          View Certificates
                                         </button>
-                                      ) : (
-                                        <span className="no-resume-indicator">No Resume</span>
-                                      )}
+                                      </div>
                                       {isReferred ? (
                                         <button
                                           className="btn-cancel-referral"
@@ -2732,6 +2830,100 @@ const JobManagementSimplified = () => {
           </div>
         </div>
       )}
+
+      {/* Certificates Modal */}
+      {showCertificatesModal && selectedCertificatesJobseeker && (
+        <div 
+          className="modal-overlay" 
+          style={{ zIndex: 3500 }}
+          onClick={() => setShowCertificatesModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="certificates-modal-title"
+        >
+          <div 
+            className="modal-content certificates-modal" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 id="certificates-modal-title">📑 Jobseeker Certificates</h2>
+            </div>
+            <div className="modal-body certificates-body">
+              <div className="certificate-section">
+                <h3>TESDA NC Certificates</h3>
+                <ul className="certificate-list">
+                  {[
+                    { key: 'nc1_certificate_url', label: 'NC I' },
+                    { key: 'nc2_certificate_url', label: 'NC II' },
+                    { key: 'nc3_certificate_url', label: 'NC III' },
+                    { key: 'nc4_certificate_url', label: 'NC IV' }
+                  ].map(({ key, label }) => {
+                    const url = selectedCertificatesJobseeker[key];
+                    return (
+                      <li key={key}>
+                        <span>{label}</span>
+                        {url ? (
+                          <div className="certificate-actions">
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="btn-view-certificates">
+                              View
+                            </a>
+                            <a href={url} download className="btn-view-certificates secondary">
+                              Download
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="no-resume-indicator">Not uploaded</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              <div className="certificate-section">
+                <h3>Other Certificates</h3>
+                {Array.isArray(selectedCertificatesJobseeker.other_certificates) &&
+                selectedCertificatesJobseeker.other_certificates.length ? (
+                  <ul className="certificate-list">
+                    {selectedCertificatesJobseeker.other_certificates.map((cert, idx) => (
+                      <li key={`${cert.type}-${idx}`}>
+                        <div>
+                          <span>{cert.type || 'Certificate'}</span>
+                          {cert.uploaded_at ? (
+                            <small>Uploaded on {formatDate(cert.uploaded_at)}</small>
+                          ) : null}
+                        </div>
+                        {cert.url ? (
+                          <div className="certificate-actions">
+                            <a href={cert.url} target="_blank" rel="noopener noreferrer" className="btn-view-certificates">
+                              View
+                            </a>
+                            <a href={cert.url} download className="btn-view-certificates secondary">
+                              Download
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="no-resume-indicator">File missing</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="no-certificates">No other certificates uploaded.</p>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary"
+                onClick={() => setShowCertificatesModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Edit Job Modal */}
       {showEditModal && selectedJob && (

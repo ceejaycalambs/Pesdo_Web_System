@@ -282,11 +282,6 @@
 .user-name {
   font-size: 1rem;
   font-weight: 600;
-  color: #ffffff;
-}
-
-.employer-dashboard .user-name {
-  color: #ffffff !important;
 }
 
 .user-email {
