@@ -1989,6 +1989,42 @@ input[type="date"]::-ms-expand {
   color: #0f172a;
 }
 
+.modal-meta-item.certificate-item {
+  margin-bottom: 16px;
+}
+
+.certificate-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.other-certificates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.other-certificate-item {
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.certificate-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.certificate-info strong {
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
 .applicant-info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

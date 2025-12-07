@@ -771,6 +771,173 @@ const UserManagement = () => {
                       </div>
                     </div>
 
+                    {/* Certificates Section */}
+                    {(selectedUser.nc1_certificate_url || 
+                      selectedUser.nc2_certificate_url || 
+                      selectedUser.nc3_certificate_url || 
+                      selectedUser.nc4_certificate_url || 
+                      (Array.isArray(selectedUser.other_certificates) && selectedUser.other_certificates.length > 0)) && (
+                      <div className="details-section">
+                        <h4>🏆 Certificates</h4>
+                        
+                        {/* NC Certificates */}
+                        {selectedUser.nc1_certificate_url && (
+                          <div className="detail-item">
+                            <label>NC I Certificate</label>
+                            <div className="certificate-actions">
+                              <a 
+                                href={selectedUser.nc1_certificate_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="resume-btn"
+                              >
+                                📄 View Certificate
+                              </a>
+                              <a 
+                                href={selectedUser.nc1_certificate_url} 
+                                download
+                                className="download-btn"
+                              >
+                                ⬇️ Download
+                              </a>
+                            </div>
+                            {selectedUser.nc1_certificate_uploaded_at && (
+                              <span className="certificate-date">
+                                Uploaded: {formatDate(selectedUser.nc1_certificate_uploaded_at)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        
+                        {selectedUser.nc2_certificate_url && (
+                          <div className="detail-item">
+                            <label>NC II Certificate</label>
+                            <div className="certificate-actions">
+                              <a 
+                                href={selectedUser.nc2_certificate_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="resume-btn"
+                              >
+                                📄 View Certificate
+                              </a>
+                              <a 
+                                href={selectedUser.nc2_certificate_url} 
+                                download
+                                className="download-btn"
+                              >
+                                ⬇️ Download
+                              </a>
+                            </div>
+                            {selectedUser.nc2_certificate_uploaded_at && (
+                              <span className="certificate-date">
+                                Uploaded: {formatDate(selectedUser.nc2_certificate_uploaded_at)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        
+                        {selectedUser.nc3_certificate_url && (
+                          <div className="detail-item">
+                            <label>NC III Certificate</label>
+                            <div className="certificate-actions">
+                              <a 
+                                href={selectedUser.nc3_certificate_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="resume-btn"
+                              >
+                                📄 View Certificate
+                              </a>
+                              <a 
+                                href={selectedUser.nc3_certificate_url} 
+                                download
+                                className="download-btn"
+                              >
+                                ⬇️ Download
+                              </a>
+                            </div>
+                            {selectedUser.nc3_certificate_uploaded_at && (
+                              <span className="certificate-date">
+                                Uploaded: {formatDate(selectedUser.nc3_certificate_uploaded_at)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        
+                        {selectedUser.nc4_certificate_url && (
+                          <div className="detail-item">
+                            <label>NC IV Certificate</label>
+                            <div className="certificate-actions">
+                              <a 
+                                href={selectedUser.nc4_certificate_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="resume-btn"
+                              >
+                                📄 View Certificate
+                              </a>
+                              <a 
+                                href={selectedUser.nc4_certificate_url} 
+                                download
+                                className="download-btn"
+                              >
+                                ⬇️ Download
+                              </a>
+                            </div>
+                            {selectedUser.nc4_certificate_uploaded_at && (
+                              <span className="certificate-date">
+                                Uploaded: {formatDate(selectedUser.nc4_certificate_uploaded_at)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Other Certificates */}
+                        {Array.isArray(selectedUser.other_certificates) && selectedUser.other_certificates.length > 0 && (
+                          <div className="detail-item">
+                            <label>Other Certificates</label>
+                            <div className="other-certificates-list">
+                              {selectedUser.other_certificates.map((cert, index) => (
+                                <div key={index} className="other-certificate-item">
+                                  <div className="certificate-info">
+                                    <strong>{cert.type || `Certificate ${index + 1}`}</strong>
+                                    {cert.file_name && (
+                                      <span className="certificate-file-name">{cert.file_name}</span>
+                                    )}
+                                    {cert.uploaded_at && (
+                                      <span className="certificate-date">
+                                        Uploaded: {formatDate(cert.uploaded_at)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {cert.url && (
+                                    <div className="certificate-actions">
+                                      <a 
+                                        href={cert.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="resume-btn"
+                                      >
+                                        📄 View
+                                      </a>
+                                      <a 
+                                        href={cert.url} 
+                                        download
+                                        className="download-btn"
+                                      >
+                                        ⬇️ Download
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Resume Section */}
                     {selectedUser.resume_url && (
                       <div className="details-section">

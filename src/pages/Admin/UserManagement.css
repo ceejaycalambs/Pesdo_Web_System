@@ -928,10 +928,51 @@
   grid-column: 1 / -1;
 }
 
-.resume-actions {
+.resume-actions,
+.certificate-actions {
   display: flex;
   gap: 15px;
   margin-top: 10px;
+}
+
+.certificate-date {
+  display: block;
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-top: 5px;
+  font-style: italic;
+}
+
+.other-certificates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.other-certificate-item {
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.certificate-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.certificate-info strong {
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
+.certificate-file-name {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-style: italic;
 }
 
 .resume-btn, .download-btn {

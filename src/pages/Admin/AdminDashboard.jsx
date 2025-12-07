@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
@@ -25,6 +25,14 @@ const AdminDashboard = () => {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [adminRole, setAdminRole] = useState(null); // 'admin' or 'super_admin'
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Refs to prevent duplicate fetches
+  const isFetchingRef = useRef(false);
+  const fetchTimeoutRef = useRef(null);
+  const lastFetchTimeRef = useRef(0);
+  const checkAuthRunningRef = useRef(false);
+  const lastAuthCheckRef = useRef({ authUserId: null, userType: null });
+  const fallbackEmailSetRef = useRef(false); // Track if fallback email was set
 
   // Realtime notifications
   const {
@@ -35,10 +43,55 @@ const AdminDashboard = () => {
     requestNotificationPermission
   } = useRealtimeNotifications(authUser?.id, 'admin');
 
+  // Separate useEffect for fallback email setting - ensures email is set immediately
+  // This runs whenever authUser.email is available but adminEmail is not set
   useEffect(() => {
-    checkAdminAuth();
+    if (authUser?.email && !adminEmail) {
+      setAdminEmail(authUser.email);
+      const cachedRole = localStorage.getItem('admin_role') || 'admin';
+      if (!adminRole) {
+        setAdminRole(cachedRole);
+      }
+      setLoading(false);
+    }
+  }, [authUser?.email]); // Only depend on email to prevent loops
+  
+  // Separate effect to clear loading when we have email
+  useEffect(() => {
+    if (authUser?.email && adminEmail === authUser.email && loading) {
+      setLoading(false);
+    }
+  }, [authUser?.email, adminEmail, loading]);
+
+  // Separate useEffect for checkAdminAuth (runs when auth state changes)
+  useEffect(() => {
+    // Prevent infinite loops by checking if auth state actually changed
+    const currentAuthId = authUser?.id;
+    const currentUserType = userData?.usertype || userData?.userType;
+    const lastCheck = lastAuthCheckRef.current;
+    
+    // Skip if already checking or if nothing meaningful changed
+    if (checkAuthRunningRef.current) {
+      return;
+    }
+    
+    // Skip if auth user ID and user type haven't changed
+    if (currentAuthId === lastCheck.authUserId && currentUserType === lastCheck.userType) {
+      return;
+    }
+    
+    // Update last check values
+    lastAuthCheckRef.current = {
+      authUserId: currentAuthId,
+      userType: currentUserType
+    };
+    
+    checkAuthRunningRef.current = true;
+    checkAdminAuth().finally(() => {
+      checkAuthRunningRef.current = false;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser, userData]);
+  }, [authUser?.id, userData?.usertype, userData?.userType]); // Removed adminEmail to prevent loop
 
   // Request notification permission on mount
   useEffect(() => {
@@ -47,12 +100,44 @@ const AdminDashboard = () => {
     }
   }, [authUser?.id, requestNotificationPermission]);
 
-  // Fetch dashboard data only when admin is authenticated AND role is known
+  // Fetch dashboard data when admin is authenticated
+  // Don't wait for adminRole - use fallback if needed
   useEffect(() => {
-    if (adminEmail && authUser && adminRole) {
-      fetchDashboardData();
+    // Only fetch if we have both email and user, and haven't fetched recently
+    if (!adminEmail || !authUser) {
+      return;
     }
-  }, [adminEmail, authUser, adminRole]);
+    
+    // If adminRole is not set yet, use cached role or default to 'admin'
+    const roleToUse = adminRole || localStorage.getItem('admin_role') || 'admin';
+    if (!adminRole && roleToUse) {
+      setAdminRole(roleToUse);
+    }
+    
+    // Skip if already fetching
+    if (isFetchingRef.current) {
+      return;
+    }
+    
+    // Debounce fetch to prevent rapid successive calls
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    
+    fetchTimeoutRef.current = setTimeout(() => {
+      if (!isFetchingRef.current) {
+        fetchDashboardData();
+      }
+    }, 500); // 500ms debounce
+    
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminEmail, authUser?.id]); // Only depend on email and user ID to prevent loops
 
   // Set up real-time data synchronization
   useRealtimeData(
@@ -61,24 +146,39 @@ const AdminDashboard = () => {
     {
       onJobsUpdate: (payload) => {
         console.log('🔄 Real-time job update received, refreshing dashboard...');
-        // Refresh dashboard stats when jobs are updated
-        if (adminEmail && authUser && adminRole) {
-          fetchDashboardData();
+        // Debounce realtime updates to prevent rapid successive calls
+        if (fetchTimeoutRef.current) {
+          clearTimeout(fetchTimeoutRef.current);
         }
+        fetchTimeoutRef.current = setTimeout(() => {
+          if (adminEmail && authUser && !isFetchingRef.current) {
+            fetchDashboardData();
+          }
+        }, 1000); // 1 second debounce for realtime updates
       },
       onJobStatusChange: (job, oldStatus, newStatus) => {
         console.log(`📊 Job status changed: ${oldStatus} → ${newStatus}`, job);
-        // Refresh dashboard when job status changes
-        if (adminEmail && authUser && adminRole) {
-          fetchDashboardData();
+        // Debounce realtime updates
+        if (fetchTimeoutRef.current) {
+          clearTimeout(fetchTimeoutRef.current);
         }
+        fetchTimeoutRef.current = setTimeout(() => {
+          if (adminEmail && authUser && !isFetchingRef.current) {
+            fetchDashboardData();
+          }
+        }, 1000);
       },
       onNewJob: (job) => {
         console.log('🆕 New job pending approval, refreshing dashboard...', job);
-        // Refresh dashboard when new job is created
-        if (adminEmail && authUser && adminRole) {
-          fetchDashboardData();
+        // Debounce realtime updates
+        if (fetchTimeoutRef.current) {
+          clearTimeout(fetchTimeoutRef.current);
         }
+        fetchTimeoutRef.current = setTimeout(() => {
+          if (adminEmail && authUser && !isFetchingRef.current) {
+            fetchDashboardData();
+          }
+        }, 1000);
       }
     }
   );
@@ -121,6 +221,23 @@ const AdminDashboard = () => {
   }, []);
 
   const checkAdminAuth = async () => {
+    // Early return if already running (prevent concurrent calls)
+    if (checkAuthRunningRef.current) {
+      return;
+    }
+    
+    // If we already have adminEmail, just verify/update role
+    if (adminEmail && authUser?.email === adminEmail) {
+      // Just verify role, don't set email again
+      if (userData?.role && adminRole !== userData.role) {
+        setAdminRole(userData.role);
+      }
+      if (loading) {
+        setLoading(false);
+      }
+      return;
+    }
+    
     // Check if user is authenticated via AuthContext
     if (!authUser) {
       // Fallback to localStorage check for backward compatibility
@@ -154,7 +271,8 @@ const AdminDashboard = () => {
       const userType = userData.usertype || userData.userType;
 
       // Set adminEmail early so component can render even if userType is not yet available
-      if (authUser.email && !adminEmail) {
+      // Only update if changed (prevent unnecessary re-renders)
+      if (authUser.email && adminEmail !== authUser.email) {
         setAdminEmail(authUser.email);
       }
 
@@ -164,9 +282,16 @@ const AdminDashboard = () => {
         const cachedRole = localStorage.getItem('admin_role');
         if (cachedRole && authUser.email) {
           // We have cached role and email, allow rendering while waiting for userType
-          setAdminRole(cachedRole);
-          setAdminEmail(authUser.email);
-          setLoading(false);
+          // Only update if changed (prevent unnecessary re-renders)
+          if (adminRole !== cachedRole) {
+            setAdminRole(cachedRole);
+          }
+          if (adminEmail !== authUser.email) {
+            setAdminEmail(authUser.email);
+          }
+          if (loading) {
+            setLoading(false);
+          }
           // Still return early, but component will render because adminEmail is set
           return;
         }
@@ -182,105 +307,174 @@ const AdminDashboard = () => {
         return;
       }
 
-      setAdminEmail(authUser.email || '');
+      // Only update adminEmail if it changed (prevent unnecessary re-renders)
+      if (adminEmail !== (authUser.email || '')) {
+        setAdminEmail(authUser.email || '');
+      }
       
-      // Always fetch role from database to ensure it's correct for the current user
-      // Don't trust localStorage as it might be stale or from a different user
-      try {
-        // Use maybeSingle to avoid 406 when RLS hides a row (no row visible)
-        const { data: adminProfile, error: profileError } = await supabase
+      // Use userData.role immediately if available (from AuthContext cache)
+      // This prevents delays and glitches
+      if (userData.role) {
+        const role = userData.role;
+        console.log('✅ Using role from userData (cached):', role);
+        // Only update if role changed (prevent unnecessary re-renders)
+        if (adminRole !== role) {
+          setAdminRole(role);
+        }
+        localStorage.setItem('admin_role', role);
+        // Always set loading to false when we have a role
+        setLoading(false);
+        
+        // Fetch role from database in background to verify (non-blocking)
+        supabase
           .from('admin_profiles')
           .select('role')
           .eq('id', authUser.id)
-          .maybeSingle();
-        
-        if (!profileError && adminProfile) {
-          const role = adminProfile.role || 'admin';
-          console.log('✅ Admin role fetched from database:', role);
-          setAdminRole(role);
-          // Only update localStorage if it matches the current user's actual role
-          localStorage.setItem('admin_role', role);
-        } else {
-          // Fallback to userData.role if database fetch fails
-          const role = userData.role || 'admin';
-          console.log('⚠️ Using fallback role from userData:', role);
-          setAdminRole(role);
-          localStorage.setItem('admin_role', role);
+          .maybeSingle()
+          .then(({ data: adminProfile, error: profileError }) => {
+            if (!profileError && adminProfile && adminProfile.role) {
+              const dbRole = adminProfile.role;
+              if (dbRole !== role) {
+                console.log('🔄 Role mismatch detected, updating from database:', dbRole);
+                setAdminRole(dbRole);
+                localStorage.setItem('admin_role', dbRole);
+              }
+            }
+          })
+          .catch((error) => {
+            console.warn('⚠️ Background role fetch failed (non-critical):', error);
+          });
+      } else {
+        // Fallback: use cached role or default to 'admin', don't block rendering
+        const cachedRole = localStorage.getItem('admin_role') || 'admin';
+        console.log('✅ Using cached role from localStorage:', cachedRole);
+        if (adminRole !== cachedRole) {
+          setAdminRole(cachedRole);
         }
-      } catch (error) {
-        console.error('❌ Error fetching admin role:', error);
-        // Fallback to userData.role
-        const role = userData.role || 'admin';
-        console.log('⚠️ Using fallback role after error:', role);
-        setAdminRole(role);
-        localStorage.setItem('admin_role', role);
+        localStorage.setItem('admin_role', cachedRole);
+        // Always set loading to false - we have email and cached role
+        setLoading(false);
+        
+        // Fetch role from database in background (non-blocking)
+        supabase
+          .from('admin_profiles')
+          .select('role')
+          .eq('id', authUser.id)
+          .maybeSingle()
+          .then(({ data: adminProfile, error: profileError }) => {
+            if (!profileError && adminProfile && adminProfile.role) {
+              const dbRole = adminProfile.role;
+              if (dbRole !== cachedRole) {
+                console.log('🔄 Role updated from database:', dbRole);
+                setAdminRole(dbRole);
+                localStorage.setItem('admin_role', dbRole);
+              }
+            }
+          })
+          .catch((error) => {
+            console.warn('⚠️ Background role fetch failed (non-critical):', error);
+          });
       }
-      
-      setLoading(false);
       
       // Log role after state update (will be in next render)
       setTimeout(() => {
         console.log('🔐 Admin authentication successful. Email:', authUser.email);
       }, 100);
+    } else if (authUser && !userData) {
+      // User is authenticated but profile not loaded yet
+      // Use cached data if available to prevent stuck loading
+      const cachedRole = localStorage.getItem('admin_role') || 'admin';
+      const cachedEmail = authUser.email;
+      
+      if (cachedEmail) {
+        if (adminEmail !== cachedEmail) {
+          setAdminEmail(cachedEmail);
+        }
+        if (adminRole !== cachedRole) {
+          setAdminRole(cachedRole);
+        }
+        // Set loading to false so dashboard can render
+        setLoading(false);
+        console.log('⚠️ Using cached admin data while profile loads');
+      } else {
+        // No cached data, wait for profile
+        setLoading(true);
+      }
     } else {
-      // Wait for auth to load
+      // No auth user, wait for auth to load
       setLoading(true);
     }
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) {
+      console.log('⏸️ Fetch already in progress, skipping...');
+      return;
+    }
+    
+    // Debounce rapid calls (within 2 seconds)
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < 2000) {
+      console.log('⏸️ Debouncing rapid fetch call...');
+      return;
+    }
+    lastFetchTimeRef.current = now;
+    
+    isFetchingRef.current = true;
+    
     try {
-      console.log('🔍 Fetching dashboard data...');
-      console.log('👤 Admin Email:', adminEmail);
-      console.log('🔐 Admin Role:', adminRole);
+      // Use current adminRole or fallback to prevent blocking
+      const roleToUse = adminRole || localStorage.getItem('admin_role') || 'admin';
       setIsDataLoaded(false);
       setError('');
       
       // Check current user session
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      console.log('👤 Current user:', user);
-      console.log('❌ User error:', userError);
+      if (userError) {
+        console.error('❌ User error:', userError);
+      }
 
       // Fetch user statistics with names - try to get all available fields
-      console.log('📊 Fetching jobseeker profiles...');
       const { data: jobseekerProfiles, error: jobseekerError } = await supabase
         .from('jobseeker_profiles')
         .select('id, first_name, last_name, suffix, email, created_at');
 
-      console.log('👤 Jobseeker profiles:', jobseekerProfiles);
-      console.log('❌ Jobseeker error:', jobseekerError);
+      if (jobseekerError) {
+        console.error('❌ Jobseeker error:', jobseekerError);
+      }
 
-      console.log('🏢 Fetching employer profiles...');
       const { data: employerProfiles, error: employerError } = await supabase
         .from('employer_profiles')
         .select('id, email, business_name, contact_person_name, created_at');
 
-      console.log('🏢 Employer profiles:', employerProfiles);
-      console.log('❌ Employer error:', employerError);
+      if (employerError) {
+        console.error('❌ Employer error:', employerError);
+      }
 
-      console.log('👑 Fetching admin profiles...');
       const { data: adminProfiles, error: adminError } = await supabase
         .from('admin_profiles')
         .select('id, first_name, last_name, username, email, created_at');
 
-      console.log('👑 Admin profiles:', adminProfiles);
-      console.log('❌ Admin error:', adminError);
+      if (adminError) {
+        console.error('❌ Admin error:', adminError);
+      }
 
-      console.log('💼 Fetching jobs...');
       const { data: jobs, error: jobsError } = await supabase
         .from('jobs')
         .select('id');
 
-      console.log('💼 Jobs:', jobs);
-      console.log('❌ Jobs error:', jobsError);
+      if (jobsError) {
+        console.error('❌ Jobs error:', jobsError);
+      }
 
-      console.log('📝 Fetching applications...');
       const { data: applications, error: applicationsError } = await supabase
         .from('applications')
         .select('id');
 
-      console.log('📝 Applications:', applications);
-      console.log('❌ Applications error:', applicationsError);
+      if (applicationsError) {
+        console.error('❌ Applications error:', applicationsError);
+      }
 
       // Get recent users (last 5) - exclude admin users
       const allUsers = [
@@ -311,12 +505,8 @@ const AdminDashboard = () => {
         // Exclude admin profiles from Recent Users display
       ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-      console.log('👥 All users:', allUsers);
-      console.log('📊 Setting stats with totalUsers:', allUsers.length);
-      
       // Limit to exactly 5 most recent users
       const limitedUsers = allUsers.slice(0, 5);
-      console.log('👥 Setting recent users:', limitedUsers);
 
       setStats({
         totalUsers: allUsers.length, // Use the actual displayed users count
@@ -333,8 +523,10 @@ const AdminDashboard = () => {
       console.error('❌ Error fetching dashboard data:', error);
       setError(`Failed to load data: ${error.message}`);
       setIsDataLoaded(false);
+    } finally {
+      isFetchingRef.current = false;
     }
-  };
+  }, [adminEmail, adminRole]);
 
   const renderRecentUsers = () => {
     if (!isDataLoaded) {
@@ -407,9 +599,11 @@ const AdminDashboard = () => {
     }
   };
 
-  // Only show loading screen if we're still checking authentication
-  // Once we have adminEmail, show the dashboard even if data is still loading
-  if (loading && !adminEmail) {
+  // Only show loading screen if we don't have any email available
+  // Once we have adminEmail OR authUser.email, show the dashboard even if data is still loading
+  // This prevents stuck loading when email is available but not yet set in state
+  const hasEmail = adminEmail || authUser?.email;
+  if (loading && !hasEmail) {
     return (
       <div className="admin-dashboard">
         <div className="loading-screen">

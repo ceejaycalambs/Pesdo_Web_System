@@ -547,9 +547,23 @@ const AdminAnalytics = () => {
     []
   );
 
+  // Fallback: Set email immediately if available
+  useEffect(() => {
+    if (authUser?.email && !adminEmail) {
+      setAdminEmail(authUser.email);
+      const cachedRole = localStorage.getItem('admin_role') || 'admin';
+      if (!adminRole) {
+        setAdminRole(cachedRole);
+      }
+      setLoading(false);
+    }
+  }, [authUser?.email]);
+  
+  // Check admin auth when auth state changes
   useEffect(() => {
     checkAdminAuth();
-  }, [authUser, userData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id, userData?.usertype, userData?.userType]);
 
   useEffect(() => {
     if (adminEmail && authUser) {
@@ -625,41 +639,91 @@ const AdminAnalytics = () => {
     if (authUser && userData) {
       // Check if user is an admin
       const userType = userData.usertype || userData.userType;
-      if (userType !== 'admin') {
+      if (userType !== 'admin' && userType !== 'super_admin') {
         // Not an admin, redirect to login
         navigate(loginPath);
         return;
       }
 
-      setAdminEmail(authUser.email || '');
+      // Only update adminEmail if it changed (prevent unnecessary re-renders)
+      if (adminEmail !== (authUser.email || '')) {
+        setAdminEmail(authUser.email || '');
+      }
       
-      // Fetch admin role
-      try {
-        const { data: adminProfile, error: profileError } = await supabase
+      // Use userData.role immediately if available (from cache)
+      if (userData.role) {
+        const role = userData.role;
+        if (adminRole !== role) {
+          setAdminRole(role);
+        }
+        localStorage.setItem('admin_role', role);
+        setLoading(false);
+        
+        // Fetch role from database in background (non-blocking)
+        supabase
           .from('admin_profiles')
           .select('role')
           .eq('id', authUser.id)
-          .single();
-        
-        if (!profileError && adminProfile) {
-          const role = adminProfile.role || 'admin';
-          setAdminRole(role);
-          localStorage.setItem('admin_role', role);
-        } else {
-          const role = userData?.role || 'admin';
-          setAdminRole(role);
-          localStorage.setItem('admin_role', role);
+          .maybeSingle()
+          .then(({ data: adminProfile, error: profileError }) => {
+            if (!profileError && adminProfile && adminProfile.role) {
+              const dbRole = adminProfile.role;
+              if (dbRole !== role) {
+                setAdminRole(dbRole);
+                localStorage.setItem('admin_role', dbRole);
+              }
+            }
+          })
+          .catch(() => {
+            // Ignore background fetch errors
+          });
+      } else {
+        // Fallback: use cached role or default
+        const cachedRole = localStorage.getItem('admin_role') || 'admin';
+        if (adminRole !== cachedRole) {
+          setAdminRole(cachedRole);
         }
-      } catch (error) {
-        console.error('Error fetching admin role:', error);
-        const role = userData?.role || 'admin';
-        setAdminRole(role);
-        localStorage.setItem('admin_role', role);
+        localStorage.setItem('admin_role', cachedRole);
+        setLoading(false);
+        
+        // Fetch role from database in background (non-blocking)
+        supabase
+          .from('admin_profiles')
+          .select('role')
+          .eq('id', authUser.id)
+          .maybeSingle()
+          .then(({ data: adminProfile, error: profileError }) => {
+            if (!profileError && adminProfile && adminProfile.role) {
+              const dbRole = adminProfile.role;
+              if (dbRole !== cachedRole) {
+                setAdminRole(dbRole);
+                localStorage.setItem('admin_role', dbRole);
+              }
+            }
+          })
+          .catch(() => {
+            // Ignore background fetch errors
+          });
       }
+    } else if (authUser && !userData) {
+      // User is authenticated but profile not loaded yet
+      // Use cached data if available to prevent stuck loading
+      const cachedRole = localStorage.getItem('admin_role') || 'admin';
+      const cachedEmail = authUser.email;
       
-      setLoading(false);
+      if (cachedEmail) {
+        if (adminEmail !== cachedEmail) {
+          setAdminEmail(cachedEmail);
+        }
+        if (adminRole !== cachedRole) {
+          setAdminRole(cachedRole);
+        }
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
     } else {
-      // Wait for auth to load
+      // No auth user, wait for auth to load
       setLoading(true);
     }
   };
@@ -1402,7 +1466,10 @@ const AdminAnalytics = () => {
     );
   };
 
-  if (loading) {
+  // Only show loading if we don't have email available
+  // Once we have adminEmail OR authUser.email, show the page even if data is still loading
+  const hasEmail = adminEmail || authUser?.email;
+  if (loading && !hasEmail) {
     return (
       <div className="admin-analytics">
         <div className="loading-screen">

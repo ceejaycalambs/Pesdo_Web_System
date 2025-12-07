@@ -375,7 +375,17 @@ export const useRealtimeNotifications = (userId, userType) => {
             handleRealtimeUpdate(payload, userType);
           }
         )
-        .subscribe();
+            .subscribe((status) => {
+              if (status === 'SUBSCRIBED') {
+                console.log('✅ Jobseeker notifications subscribed');
+              } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                // Only log errors in production (CLOSED is expected in development)
+                if (process.env.NODE_ENV === 'production') {
+                  console.warn('⚠️ Jobseeker notification channel issue (non-critical):', status);
+                }
+              }
+              // Don't log CLOSED - it's expected during component unmount/remount
+            });
     } else if (userType === 'employer') {
       // Subscribe to new applications for employers
       const setupEmployerSubscription = async () => {
@@ -431,7 +441,17 @@ export const useRealtimeNotifications = (userId, userType) => {
                 handleRealtimeUpdate(payload, userType, 'notification');
               }
             )
-            .subscribe();
+            .subscribe((status) => {
+              if (status === 'SUBSCRIBED') {
+                console.log('✅ Employer notifications subscribed');
+              } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                // Only log errors in production (CLOSED is expected in development)
+                if (process.env.NODE_ENV === 'production') {
+                  console.warn('⚠️ Employer notification channel issue (non-critical):', status);
+                }
+              }
+              // Don't log CLOSED - it's expected during component unmount/remount
+            });
         }
       };
 
@@ -456,7 +476,17 @@ export const useRealtimeNotifications = (userId, userType) => {
             }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Admin notifications subscribed');
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            // Only log errors in production (CLOSED is expected in development)
+            if (process.env.NODE_ENV === 'production') {
+              console.warn('⚠️ Admin notification channel issue (non-critical):', status);
+            }
+          }
+          // Don't log CLOSED - it's expected during component unmount/remount
+        });
     }
 
     // Cleanup on unmount
@@ -466,7 +496,14 @@ export const useRealtimeNotifications = (userId, userType) => {
         pollingRef.current = null;
       }
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        // Unsubscribe silently to prevent CLOSED warnings during cleanup
+        // This is expected in React StrictMode (development)
+        try {
+          supabase.removeChannel(channelRef.current);
+        } catch (error) {
+          // Ignore cleanup errors - channel may already be closed
+        }
+        channelRef.current = null;
       }
     };
   }, [userId, userType]);

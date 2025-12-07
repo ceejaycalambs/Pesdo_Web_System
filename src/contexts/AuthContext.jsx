@@ -215,23 +215,112 @@ export function AuthProvider({ children }) {
       }
       
       // Check admin by id with timeout protection
-      // If we have a strong hint (admin/super_admin), use minimal query and shorter timeout
+      // If we have a strong hint (admin/super_admin), use cached data immediately and fetch in background
       console.log('ℹ️ No employer profile found, checking admin...');
       console.log('🔍 Querying admin_profiles for ID:', userId);
       
-      // Use minimal query when we have a strong hint to reduce RLS overhead
-      const adminColumns = (hint === 'admin' || hint === 'super_admin') 
-        ? 'id, email, role'  // Minimal columns for faster query
-        : 'id, email, role, first_name, last_name, created_at, updated_at';  // Full columns if no hint
+      // For strong hints, use cached data immediately to prevent UI blocking
+      if (hint === 'admin' || hint === 'super_admin') {
+        const cachedProfileKey = `cachedProfile_${userId}`;
+        const cachedProfile = localStorage.getItem(cachedProfileKey);
+        
+        if (cachedProfile) {
+          try {
+            const parsedProfile = JSON.parse(cachedProfile);
+            const cacheAge = Date.now() - (parsedProfile._cachedAt || 0);
+            // Use cache if less than 30 minutes old (more lenient for admin)
+            if (cacheAge < 1800000) {
+              console.log('✅ Using cached admin profile immediately (age:', Math.round(cacheAge / 1000), 's)');
+              const role = parsedProfile.role || hint;
+              const profileData = {
+                ...parsedProfile,
+                userType: role === 'super_admin' ? 'super_admin' : 'admin',
+                role: role
+              };
+              setUserData(profileData);
+              setProfileLoaded(true);
+              localStorage.setItem(`userType_${userId}`, role);
+              
+              // Fetch fresh data in background (non-blocking)
+              supabase
+                .from('admin_profiles')
+                .select('id, email, role')
+                .eq('id', userId)
+                .maybeSingle()
+                .then((result) => {
+                  if (result.data && !result.error) {
+                    const freshRole = result.data.role || role;
+                    const freshProfile = {
+                      ...result.data,
+                      userType: freshRole === 'super_admin' ? 'super_admin' : 'admin',
+                      role: freshRole,
+                      _cachedAt: Date.now()
+                    };
+                    setUserData(freshProfile);
+                    localStorage.setItem(cachedProfileKey, JSON.stringify(freshProfile));
+                    console.log('✅ Background admin profile update completed');
+                  }
+                })
+                .catch(() => {
+                  // Ignore background fetch errors - we already have cached data
+                });
+              
+              return { success: true, profile: profileData, userType: role === 'super_admin' ? 'super_admin' : 'admin', role };
+            }
+          } catch (e) {
+            console.warn('⚠️ Failed to parse cached profile');
+          }
+        }
+        
+        // If no valid cache, use fallback immediately and fetch in background
+        console.log('⚠️ Using fallback admin profile immediately (will update in background)');
+        const role = hint === 'super_admin' ? 'super_admin' : 'admin';
+        const fallbackProfile = {
+          id: userId,
+          email: email,
+          userType: role,
+          role: role
+        };
+        setUserData(fallbackProfile);
+        setProfileLoaded(true);
+        localStorage.setItem(`userType_${userId}`, role);
+        
+        // Fetch fresh data in background (non-blocking)
+        supabase
+          .from('admin_profiles')
+          .select('id, email, role')
+          .eq('id', userId)
+          .maybeSingle()
+          .then((result) => {
+            if (result.data && !result.error) {
+              const freshRole = result.data.role || role;
+              const freshProfile = {
+                ...result.data,
+                userType: freshRole === 'super_admin' ? 'super_admin' : 'admin',
+                role: freshRole,
+                _cachedAt: Date.now()
+              };
+              setUserData(freshProfile);
+              localStorage.setItem(cachedProfileKey, JSON.stringify(freshProfile));
+              console.log('✅ Background admin profile fetch completed');
+            }
+          })
+          .catch(() => {
+            // Ignore background fetch errors - we already have fallback
+          });
+        
+        return { success: true, profile: fallbackProfile, userType: role, role };
+      }
       
+      // For non-admin hints, use normal query with timeout
+      const adminColumns = 'id, email, role, first_name, last_name, created_at, updated_at';
       const adminQueryPromise = supabase
         .from('admin_profiles')
         .select(adminColumns)
         .eq('id', userId)
         .maybeSingle();
       
-      // Shorter timeout if we have a strong hint, longer if not
-      const adminTimeout = (hint === 'admin' || hint === 'super_admin') ? 5000 : 15000;  // Reduced from 10s to 5s for strong hints
+      const adminTimeout = 20000;  // 20 seconds for non-hint queries
       const adminTimeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error(`Query timeout after ${adminTimeout/1000} seconds`)), adminTimeout)
       );
@@ -244,41 +333,8 @@ export function AuthProvider({ children }) {
       } catch (err) {
         if (err.message?.includes('timeout')) {
           console.error(`⏱️ Admin query timed out after ${adminTimeout/1000} seconds`);
-          
-          // If we have a strong hint, skip retry and use fallback immediately
-          if (hint === 'admin' || hint === 'super_admin') {
-            console.log('⚠️ Admin query timed out but we have a strong hint - using fallback');
-            apErr = new Error('Query timeout - using cached user type');
-            ap = null;
-          } else {
-            // Retry with minimal columns only
-            console.log('🔄 Retrying admin query with minimal columns...');
-            try {
-              const retryPromise = supabase
-                .from('admin_profiles')
-                .select('id, email, role')
-                .eq('id', userId)
-                .maybeSingle();
-              
-              const retryTimeout = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Retry timeout')), 8000)
-              );
-              
-              const retryResult = await Promise.race([retryPromise, retryTimeout]);
-              if (retryResult.data) {
-                console.log('✅ Admin retry successful with minimal columns');
-                ap = retryResult.data;
-                apErr = null;
-              } else {
-                apErr = retryResult.error || new Error('Query timeout - please check your connection');
-                ap = null;
-              }
-            } catch (retryErr) {
-              console.error('❌ Admin retry also failed:', retryErr);
-              apErr = new Error('Query timeout - please check your connection');
-              ap = null;
-            }
-          }
+          apErr = new Error('Query timeout - please check your connection');
+          ap = null;
         } else {
           console.error('❌ Unexpected error in admin query:', err);
           apErr = err;

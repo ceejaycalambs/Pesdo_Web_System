@@ -626,7 +626,16 @@ const EmployerDashboard = () => {
                 suffix,
                 email,
                 age,
-                resume_url
+                resume_url,
+                nc1_certificate_url,
+                nc1_certificate_uploaded_at,
+                nc2_certificate_url,
+                nc2_certificate_uploaded_at,
+                nc3_certificate_url,
+                nc3_certificate_uploaded_at,
+                nc4_certificate_url,
+                nc4_certificate_uploaded_at,
+                other_certificates
               )
             `
           )
@@ -2956,6 +2965,182 @@ const EmployerDashboard = () => {
                     <p>{profile.bio}</p>
                   </div>
                 ) : null}
+
+                {/* Certificates Section */}
+                {(profile.nc1_certificate_url || 
+                  profile.nc2_certificate_url || 
+                  profile.nc3_certificate_url || 
+                  profile.nc4_certificate_url || 
+                  (Array.isArray(profile.other_certificates) && profile.other_certificates.length > 0)) && (
+                  <div className="modal-section">
+                    <h4>🏆 Certificates</h4>
+                    
+                    {/* NC Certificates */}
+                    {profile.nc1_certificate_url && (
+                      <div className="modal-meta-item certificate-item">
+                        <span>NC I Certificate</span>
+                        <div className="certificate-actions">
+                          <a
+                            href={profile.nc1_certificate_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-link"
+                          >
+                            📄 View Certificate
+                          </a>
+                          <a
+                            href={profile.nc1_certificate_url}
+                            download
+                            className="inline-link"
+                            style={{ marginLeft: '10px' }}
+                          >
+                            ⬇️ Download
+                          </a>
+                        </div>
+                        {profile.nc1_certificate_uploaded_at && (
+                          <span style={{ fontSize: '0.85rem', color: '#6b7280', fontStyle: 'italic', display: 'block', marginTop: '5px' }}>
+                            Uploaded: {formatDateLabel(profile.nc1_certificate_uploaded_at)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    
+                    {profile.nc2_certificate_url && (
+                      <div className="modal-meta-item certificate-item">
+                        <span>NC II Certificate</span>
+                        <div className="certificate-actions">
+                          <a
+                            href={profile.nc2_certificate_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-link"
+                          >
+                            📄 View Certificate
+                          </a>
+                          <a
+                            href={profile.nc2_certificate_url}
+                            download
+                            className="inline-link"
+                            style={{ marginLeft: '10px' }}
+                          >
+                            ⬇️ Download
+                          </a>
+                        </div>
+                        {profile.nc2_certificate_uploaded_at && (
+                          <span style={{ fontSize: '0.85rem', color: '#6b7280', fontStyle: 'italic', display: 'block', marginTop: '5px' }}>
+                            Uploaded: {formatDateLabel(profile.nc2_certificate_uploaded_at)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    
+                    {profile.nc3_certificate_url && (
+                      <div className="modal-meta-item certificate-item">
+                        <span>NC III Certificate</span>
+                        <div className="certificate-actions">
+                          <a
+                            href={profile.nc3_certificate_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-link"
+                          >
+                            📄 View Certificate
+                          </a>
+                          <a
+                            href={profile.nc3_certificate_url}
+                            download
+                            className="inline-link"
+                            style={{ marginLeft: '10px' }}
+                          >
+                            ⬇️ Download
+                          </a>
+                        </div>
+                        {profile.nc3_certificate_uploaded_at && (
+                          <span style={{ fontSize: '0.85rem', color: '#6b7280', fontStyle: 'italic', display: 'block', marginTop: '5px' }}>
+                            Uploaded: {formatDateLabel(profile.nc3_certificate_uploaded_at)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    
+                    {profile.nc4_certificate_url && (
+                      <div className="modal-meta-item certificate-item">
+                        <span>NC IV Certificate</span>
+                        <div className="certificate-actions">
+                          <a
+                            href={profile.nc4_certificate_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-link"
+                          >
+                            📄 View Certificate
+                          </a>
+                          <a
+                            href={profile.nc4_certificate_url}
+                            download
+                            className="inline-link"
+                            style={{ marginLeft: '10px' }}
+                          >
+                            ⬇️ Download
+                          </a>
+                        </div>
+                        {profile.nc4_certificate_uploaded_at && (
+                          <span style={{ fontSize: '0.85rem', color: '#6b7280', fontStyle: 'italic', display: 'block', marginTop: '5px' }}>
+                            Uploaded: {formatDateLabel(profile.nc4_certificate_uploaded_at)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Other Certificates */}
+                    {Array.isArray(profile.other_certificates) && profile.other_certificates.length > 0 && (
+                      <div className="modal-meta-item certificate-item">
+                        <span>Other Certificates</span>
+                        <div className="other-certificates-list" style={{ marginTop: '10px' }}>
+                          {profile.other_certificates.map((cert, index) => (
+                            <div key={index} className="other-certificate-item" style={{ padding: '12px', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb', marginBottom: '10px' }}>
+                              <div className="certificate-info">
+                                <strong style={{ color: '#1f2937', fontSize: '0.95rem', display: 'block', marginBottom: '4px' }}>
+                                  {cert.type || `Certificate ${index + 1}`}
+                                </strong>
+                                {cert.file_name && (
+                                  <span style={{ fontSize: '0.85rem', color: '#6b7280', fontStyle: 'italic', display: 'block', marginBottom: '4px' }}>
+                                    File: {cert.file_name}
+                                  </span>
+                                )}
+                                {cert.uploaded_at && (
+                                  <span style={{ fontSize: '0.85rem', color: '#6b7280', fontStyle: 'italic', display: 'block' }}>
+                                    Uploaded: {formatDateLabel(cert.uploaded_at)}
+                                  </span>
+                                )}
+                              </div>
+                              {cert.url && (
+                                <div className="certificate-actions" style={{ marginTop: '8px' }}>
+                                  <a
+                                    href={cert.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-link"
+                                  >
+                                    📄 View
+                                  </a>
+                                  <a
+                                    href={cert.url}
+                                    download
+                                    className="inline-link"
+                                    style={{ marginLeft: '10px' }}
+                                  >
+                                    ⬇️ Download
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="modal-section">
                   <h4>Resume</h4>

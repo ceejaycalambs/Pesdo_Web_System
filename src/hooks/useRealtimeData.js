@@ -370,14 +370,30 @@ export const useRealtimeData = (userId, userType, callbacks = {}) => {
       if (status === 'SUBSCRIBED') {
         console.log(`✅ Real-time data sync active for ${userType}:`, userId);
       } else if (status === 'CHANNEL_ERROR') {
-        console.error('❌ Real-time channel error');
+        // Only log errors in production or if not in React StrictMode
+        if (process.env.NODE_ENV === 'production') {
+          console.warn('⚠️ Real-time channel error (non-critical, will retry)');
+        }
+        // Don't throw error - this is non-critical and shouldn't break the app
+      } else if (status === 'TIMED_OUT') {
+        // Only log in production
+        if (process.env.NODE_ENV === 'production') {
+          console.warn('⚠️ Real-time channel timed out (non-critical)');
+        }
       }
+      // Don't log CLOSED status - it's expected during component unmount/remount in development
     });
 
     // Cleanup on unmount
     return () => {
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        // Unsubscribe silently to prevent CLOSED warnings during cleanup
+        // This is expected in React StrictMode (development)
+        try {
+          supabase.removeChannel(channelRef.current);
+        } catch (error) {
+          // Ignore cleanup errors - channel may already be closed
+        }
         channelRef.current = null;
       }
     };
