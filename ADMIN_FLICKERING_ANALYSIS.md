@@ -130,3 +130,4 @@ This document identifies all potential causes of flickering in admin components.
 - [ ] Test with multiple tabs open
 - [ ] Test authentication state changes
 
+
