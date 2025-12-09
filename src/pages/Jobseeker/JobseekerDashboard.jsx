@@ -281,6 +281,7 @@ const JobseekerDashboard = () => {
     civil_status: '',
     education: '',
     employment_status: '',
+    work_experience_months: '',
     preferred_job_1: '',
     preferred_job_2: '',
     preferred_job_3: '',
@@ -462,6 +463,7 @@ const JobseekerDashboard = () => {
         civil_status: profileData?.civil_status || '',
         education: profileData?.education || '',
         employment_status: employmentStatusValue,
+        work_experience_months: profileData?.work_experience_months ? String(profileData.work_experience_months) : '',
         preferred_job_1: preferredJobsArray[0] || '',
         preferred_job_2: preferredJobsArray[1] || '',
         preferred_job_3: preferredJobsArray[2] || '',
@@ -1042,6 +1044,7 @@ const JobseekerDashboard = () => {
     ].filter(Boolean);
 
     const ageValue = profileForm.age ? Number.parseInt(profileForm.age, 10) : null;
+    const workExperienceValue = profileForm.work_experience_months ? Number.parseInt(profileForm.work_experience_months, 10) : null;
     const payload = {
       first_name: sanitizeString(profileForm.first_name),
       last_name: sanitizeString(profileForm.last_name),
@@ -1052,6 +1055,7 @@ const JobseekerDashboard = () => {
       gender: sanitizeString(profileForm.gender),
       civil_status: sanitizeString(profileForm.civil_status),
       education: sanitizeString(profileForm.education),
+      work_experience_months: (workExperienceValue && workExperienceValue >= 0) ? workExperienceValue : null,
       status: isEmployed,
       preferred_jobs: preferredJobs.length ? preferredJobs : null,
       bio: sanitizeString(profileForm.bio),
@@ -2523,6 +2527,19 @@ const JobseekerDashboard = () => {
               <option value="unemployed">Unemployed</option>
               <option value="employed">Employed</option>
             </select>
+          </label>
+          <label className="form-field">
+            <span>Work Experience (Months)</span>
+            <input
+              type="number"
+              min="0"
+              max="600"
+              value={profileForm.work_experience_months}
+              onChange={(e) => handleProfileInputChange('work_experience_months', e.target.value)}
+              placeholder="e.g., 24 (for 2 years)"
+              disabled={!isEditingProfile}
+            />
+            <small className="form-hint">Enter your total work experience in months (e.g., 24 = 2 years, 60 = 5 years)</small>
           </label>
           <label className="form-field">
             <span>Preferred Job (Primary)</span>

@@ -423,7 +423,7 @@ const JobManagementSimplified = () => {
     try {
       const { data, error } = await supabase
         .from('jobseeker_profiles')
-        .select('id, first_name, last_name, suffix, email, phone, bio, profile_picture_url, resume_url, preferred_jobs, status, gender, age, address, nc1_certificate_url, nc2_certificate_url, nc3_certificate_url, nc4_certificate_url, other_certificates')
+        .select('id, first_name, last_name, suffix, email, phone, bio, profile_picture_url, resume_url, preferred_jobs, status, gender, age, address, work_experience_months, nc1_certificate_url, nc2_certificate_url, nc3_certificate_url, nc4_certificate_url, other_certificates')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -440,18 +440,17 @@ const JobManagementSimplified = () => {
     return Number.isNaN(num) ? null : num;
   };
 
-  // Calculate match score based on certificates and experience (months ➜ years)
+  // Calculate match score based on certificates and experience
   const calculateMatchScore = (jobseeker, job) => {
     let score = 0;
 
-    const experienceMonths =
-      normalizeNumber(job.work_experience_months) ??
-      normalizeNumber(job.required_experience_months) ??
-      normalizeNumber(job.work_experience) ??
-      0;
+    // Use jobseeker's actual work experience, not the job's requirement
+    const jobseekerExperienceMonths = normalizeNumber(jobseeker.work_experience_months) ?? 0;
 
-    const experienceYears = experienceMonths > 0 ? experienceMonths / 12 : 1;
+    // Add 2 points per month of work experience (e.g., 6 months = 12 points)
+    score += jobseekerExperienceMonths * 2;
 
+    // NC Certificate base values (no multiplier)
     const certificateValues = {
       nc1: 10,
       nc2: 20,
@@ -459,18 +458,20 @@ const JobManagementSimplified = () => {
       nc4: 40
     };
 
-    if (jobseeker.nc1_certificate_url) score += certificateValues.nc1 * experienceYears;
-    if (jobseeker.nc2_certificate_url) score += certificateValues.nc2 * experienceYears;
-    if (jobseeker.nc3_certificate_url) score += certificateValues.nc3 * experienceYears;
-    if (jobseeker.nc4_certificate_url) score += certificateValues.nc4 * experienceYears;
+    if (jobseeker.nc1_certificate_url) score += certificateValues.nc1;
+    if (jobseeker.nc2_certificate_url) score += certificateValues.nc2;
+    if (jobseeker.nc3_certificate_url) score += certificateValues.nc3;
+    if (jobseeker.nc4_certificate_url) score += certificateValues.nc4;
 
+    // Other certificates: 5 points each (no multiplier)
     const otherCertCount = Array.isArray(jobseeker.other_certificates)
       ? jobseeker.other_certificates.length
       : 0;
     if (otherCertCount > 0) {
-      score += otherCertCount * 5 * experienceYears;
+      score += otherCertCount * 5;
     }
 
+    // Preferred job match bonus
     const jobTitle = (job.position_title || job.title || '').toLowerCase();
     const preferredJobs = Array.isArray(jobseeker.preferred_jobs)
       ? jobseeker.preferred_jobs.map((j) => j.toLowerCase())
